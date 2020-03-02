@@ -1,0 +1,140 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "msvc build",
+            "type": "shell",
+            "command": "cl.exe",
+            "args": [
+                "/EHsc",
+                "/Zi",
+                "/I",
+                "${env:GLFW_HOME}/Include",
+                "/Fe:",
+                "RogueThingy.exe",
+                "*.cpp",
+                "${env:GLFW_HOME}/Libs/glfw3dll.lib"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "MinGW Compile",
+            "type": "shell",
+            "command": "g++",
+            "args": [
+                "-c",
+                "-std=c++11",
+                "-I${env:GLFW_HOME}/include",
+                "-I${env:GLAD_HOME}/include",
+                "${env:GLAD_HOME}/src/glad.c",
+                "${workspaceRoot}/src/*.cpp"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": [],
+            "options": {
+                "cwd": "${workspaceRoot}/build"
+            }
+        },
+        {
+            "label": "MinGW Link",
+            "type": "shell",
+            "command": "g++",
+            "args": [
+                "-o app.exe",
+                "*.o",
+                "-L${env:GLFW_HOME}/lib",
+                "-lglfw3",
+                "-lgdi32",
+                "-lopengl32"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": [],
+            "options": {
+                "cwd": "${workspaceRoot}/build"
+            }
+        },
+        {
+            "label": "MinGW Build",
+            "dependsOn": [
+                "MinGW Compile",
+                "MinGW Link"
+            ],
+            "dependsOrder": "sequence",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": [],
+            "options": {
+                "cwd": "${workspaceRoot}/build"
+            }
+        },
+        {
+            "label": "run",
+            "type": "shell",
+            "command": "${workspaceRoot}/build/app.exe",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build and Run",
+            "dependsOn": [
+                "MinGW Build",
+                "run"
+            ],
+            "dependsOrder": "sequence",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "setup environment",
+            "type": "shell",
+            "options": {
+                "cwd": "D:/Program Files (x86)/Microsoft Visual Studio/2019/Community/VC/Auxiliary/Build"
+            },
+            "command": "D:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Auxiliary\\Build\\vcvarshall.bat",
+            "windows": {
+                "command": "vcvarshall.bat"
+            },
+            "args": [
+                "amd64"
+            ],
+            "group": "none",
+            "problemMatcher": []
+        }
+    ]
+}

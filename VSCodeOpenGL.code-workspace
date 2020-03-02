@@ -1,0 +1,15 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"launch": {
+		"configurations": [{
+			"type": "clr",
+			"request": "attach",
+			"name": "Attach",
+			"preLaunchTask": "setup environment"
+		}]
+	}
+}
