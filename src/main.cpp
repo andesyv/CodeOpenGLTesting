@@ -1,13 +1,16 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <array>
+#include <chrono> // Timers
 
 #include <iostream>
 #include "shader.h"
+#include "timer.h"
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void processInput(GLFWwindow *window);
 void errorCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam);
+void showFPS(GLFWwindow* window);
 
 // settings
 const unsigned int SCR_WIDTH = 800;
@@ -34,6 +37,8 @@ std::string enumToString(GLenum arg, T... params)
 
 int main()
 {
+    Timer appTimer{};
+
     // glfw: initialize and configure
     // ------------------------------
     glfwInit();
@@ -47,7 +52,7 @@ int main()
 
     // glfw window creation
     // --------------------
-    GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
+    GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "VSCodeOpenGL", NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -118,10 +123,21 @@ int main()
     // uncomment this call to draw in wireframe polygons.
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
+    std::cout << "Setup took " << appTimer.elapsed<std::chrono::milliseconds>() << "ms." << std::endl;
+    appTimer.reset();
+    
+    Timer frameTimer{};
+
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window))
     {
+        // Find time since last frame
+        const auto deltaTime = frameTimer.elapsed<std::chrono::milliseconds>() * 0.001f;
+        frameTimer.reset();
+
+        showFPS(window);
+
         // input
         // -----
         processInput(window);
@@ -154,6 +170,22 @@ int main()
     // ------------------------------------------------------------------
     glfwTerminate();
     return 0;
+}
+
+void showFPS(GLFWwindow* window)
+{
+    static Timer timer{};
+    static unsigned int frameCount{0};
+    auto elapsed = timer.elapsed<std::chrono::milliseconds>();
+    if (elapsed >= 1000)
+    {
+        const auto fps = frameCount * 1000.f / elapsed;
+        std::string title{"VSCodeOpenGL, fps: " + std::to_string(fps)};
+        glfwSetWindowTitle(window, title.c_str());
+        frameCount = 0;
+        timer.reset();
+    }
+    ++frameCount;
 }
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
