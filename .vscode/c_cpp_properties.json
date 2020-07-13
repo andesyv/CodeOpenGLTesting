@@ -7,14 +7,16 @@
                 "UNICODE",
                 "_UNICODE"
             ],
-            "compilerPath": "D:/Program Files (x86)/Microsoft Visual Studio/2019/Community/VC/Tools/MSVC/14.24.28314/bin/Hostx64/x64/cl.exe",
+            "compilerPath": "${env:VCInstallDir}/Tools/MSVC/14.26.28801/bin/Hostx64/x64/cl.exe",
             "windowsSdkVersion": "10.0.18362.0",
-            "intelliSenseMode": "gcc-x86",
+            "intelliSenseMode": "${default}",
             "cStandard": "c11",
             "cppStandard": "c++17",
             "includePath": [
-                "${workspaceRoot}/include",
-                "D:/Program Files (x86)/Microsoft Visual Studio/2019/Community/VC/Tools/MSVC/14.24.28314/include/*"
+                "${env:VCInstallDir}/Tools/MSVC/14.26.28801/include",
+                "${env:GLFW_HOME}/include",
+                "${env:GLAD_HOME}/include",
+                "${workspaceRoot}/glm"
             ]
         }
     ],
