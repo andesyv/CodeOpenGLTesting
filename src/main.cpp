@@ -2,10 +2,12 @@
 #include <GLFW/glfw3.h>
 #include <array>
 #include <chrono> // Timers
-
 #include <iostream>
+#include <entt/entt.hpp> // https://github.com/skypjack/entt
+
 #include "shader.h"
 #include "timer.h"
+#include "glm/glm.hpp"
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -34,6 +36,31 @@ std::string enumToString(GLenum arg, T... params)
     constexpr auto n = sizeof...(T);
     return enumToString<n>(arg, std::array<std::pair<GLenum, std::string>, n>{params...});
 }
+
+struct Transform {
+    glm::vec3 pos;
+    glm::vec3 rot;
+    glm::vec3 scale;
+};
+
+struct Mesh {
+    unsigned int VAO;
+    unsigned int vertexCount;
+    bool bIndices : 1;
+    unsigned int indexCount : 7;     
+
+    Mesh(unsigned int _VAO = 0, unsigned int _vCount = 0)
+        : VAO{_VAO}, vertexCount{_vCount}, bIndices{false}
+    {}
+
+    Mesh(unsigned int _VAO, unsigned int _vCount, unsigned int _iCount)
+        : VAO{_VAO}, vertexCount{_vCount}, bIndices{true}, indexCount{_iCount}
+    {}
+};
+
+struct Material {
+    int shader;
+};
 
 int main()
 {
@@ -79,8 +106,20 @@ int main()
     // glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS); // If you want to ensure the error happens exactly after the error on the same thread.
     glDebugMessageCallback(&errorCallback, nullptr);
 
+
+
+
+
+
+    // ================== Setup scene ====================================
+
     Shader defaultShader{"src/default.vert", "src/default.frag"};
 
+    // Setup
+    entt::registry EM{};
+
+    auto entity = EM.create();
+    auto &mat = EM.emplace<Material>(entity, defaultShader.get());
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
     float vertices[] = {
@@ -113,6 +152,8 @@ int main()
     // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+    EM.emplace<Mesh>(entity, VAO, static_cast<unsigned int>(sizeof(vertices)), static_cast<unsigned int>(sizeof(indices)));
+
     // remember: do NOT unbind the EBO while a VAO is active as the bound element buffer object IS stored in the VAO; keep the EBO bound.
     //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
@@ -122,6 +163,13 @@ int main()
 
     // uncomment this call to draw in wireframe polygons.
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+
+
+
+
+
+
 
     std::cout << "Setup took " << appTimer.elapsed<std::chrono::milliseconds>() << "ms." << std::endl;
     appTimer.reset();
@@ -147,12 +195,21 @@ int main()
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // draw our first triangle
-        glUseProgram(defaultShader.get());
-        glBindVertexArray(VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
-        //glDrawArrays(GL_TRIANGLES, 0, 6);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        // glBindVertexArray(0); // no need to unbind it every time
+        auto view = EM.view<Mesh, Material>();
+        for (const auto& entity : view) 
+        {
+            // (Structured bindings ftw!! ENTT is so cool)
+            auto& [mesh, material] = view.get<Mesh, Material>(entity);
+
+            // draw our first triangle
+            glUseProgram(material.shader);
+            glBindVertexArray(mesh.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
+            if (mesh.bIndices)
+                glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
+            else
+                glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
+        }
+        glBindVertexArray(0); // no need to unbind it every time
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------

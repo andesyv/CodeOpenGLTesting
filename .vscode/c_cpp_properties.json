@@ -16,7 +16,8 @@
                 "${env:VCInstallDir}/Tools/MSVC/14.26.28801/include",
                 "${env:GLFW_HOME}/include",
                 "${env:GLAD_HOME}/include",
-                "${workspaceRoot}/glm"
+                "${workspaceRoot}/glm",
+                "${env:ENTT_HOME}/single_include"
             ]
         }
     ],

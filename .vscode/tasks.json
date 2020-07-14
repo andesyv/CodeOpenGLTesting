@@ -16,6 +16,8 @@
                 "${env:GLAD_HOME}/include",
                 "/I",
                 "${workspaceRoot}/glm",
+                "/I",
+                "${env:ENTT_HOME}/single_include",
                 "${env:GLAD_HOME}/src/glad.c",
                 "${workspaceRoot}/src/*.cpp"
             ],
