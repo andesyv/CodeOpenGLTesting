@@ -137,7 +137,7 @@ public:
 
         // ================== Setup scene ====================================
 
-        Shader defaultShader{"src/default.vert", "src/default.frag"};
+        Shader defaultShader{"src/shaders/default.vert", "src/shaders/default.frag"};
 
         // Setup
         entt::registry EM{};
