@@ -18,6 +18,8 @@
                 "${workspaceRoot}/glm",
                 "/I",
                 "${env:ENTT_HOME}/single_include",
+                "/I",
+                "${env:GLM_HOME}"
                 "${env:GLAD_HOME}/src/glad.c",
                 "${workspaceRoot}/src/*.cpp"
             ],

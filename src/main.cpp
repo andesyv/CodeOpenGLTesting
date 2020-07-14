@@ -4,10 +4,11 @@
 #include <chrono> // Timers
 #include <iostream>
 #include <entt/entt.hpp> // https://github.com/skypjack/entt
+#include <glm/glm.hpp>   // https://github.com/g-truc/glm
 
 #include "shader.h"
 #include "timer.h"
-#include "glm/glm.hpp"
+
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void processInput(GLFWwindow *window);
