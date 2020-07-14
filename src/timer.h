@@ -1,13 +1,13 @@
 #include <chrono>
 
 template <typename ct = std::chrono::steady_clock>
-class Timer
+class basic_timer
 {
 private:
     typename ct::time_point tp;
 
 public:
-    Timer()
+    basic_timer()
         : tp{ct::now()}
     {}
 
@@ -30,3 +30,6 @@ public:
         return ret;
     }
 };
+
+class Timer : public basic_timer<std::chrono::steady_clock>
+{};
