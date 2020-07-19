@@ -7,7 +7,7 @@
             "command": "cl.exe",
             "args": [
                 "/c",
-                "/std:c++17",
+                "/std:c++latest",
                 "/EHsc",
                 "/Zi",
                 "/I",

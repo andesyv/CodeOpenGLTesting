@@ -11,7 +11,7 @@
             "windowsSdkVersion": "10.0.18362.0",
             "intelliSenseMode": "${default}",
             "cStandard": "c11",
-            "cppStandard": "c++17",
+            "cppStandard": "c++20",
             "includePath": [
                 "${env:VCInstallDir}/Tools/MSVC/14.26.28801/include",
                 "${env:GLFW_HOME}/include",

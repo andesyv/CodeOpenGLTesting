@@ -1,4 +1,6 @@
 #include "app.h"
+#include <glm/gtc/type_ptr.hpp> // For glm::value_ptr()
+#include <glm/gtc/matrix_transform.hpp> // For glm::perspective
 
 int App::initGLFW()
 {
@@ -50,6 +52,100 @@ int App::initOpenGL()
     return 1;
 }
 
+void App::showFPS()
+{
+    static Timer timer{};
+    static unsigned int frameCount{0};
+    auto elapsed = timer.elapsed<std::chrono::milliseconds>();
+    if (elapsed >= 1000)
+    {
+        const auto fps = frameCount * 1000.f / elapsed;
+        std::string title{"CodeOpenGLTesting, fps: " + std::to_string(fps)};
+        glfwSetWindowTitle(wp, title.c_str());
+        frameCount = 0;
+        timer.reset();
+    }
+    ++frameCount;
+}
+
+void App::processInput(float deltaTime)
+{
+    if (glfwGetKey(wp, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(wp, true);
+
+    
+    auto& playerTrans = EM.get<component::trans>(playerEntity);
+    if (glfwGetKey(wp, GLFW_KEY_W) == GLFW_PRESS)
+        playerTrans.pos.y += deltaTime;
+
+    if (glfwGetKey(wp, GLFW_KEY_S) == GLFW_PRESS)
+        playerTrans.pos.y -= deltaTime;
+
+    if (glfwGetKey(wp, GLFW_KEY_D) == GLFW_PRESS)
+        playerTrans.pos.x += deltaTime;
+
+    if (glfwGetKey(wp, GLFW_KEY_A) == GLFW_PRESS)
+        playerTrans.pos.x -= deltaTime;
+}
+
+void App::gameloop()
+{
+    // Find time since last frame
+    const auto deltaTime = frameTimer.elapsed<std::chrono::milliseconds>() * 0.001f;
+    frameTimer.reset();
+
+    showFPS();
+
+    // input
+    // -----
+    processInput(deltaTime);
+
+    // render
+    // ------
+    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glUseProgram(0);
+    unsigned int currentShader{0};
+
+    auto& camera = EM.get<component::camera>(playerEntity);
+
+    auto view = EM.view<component::mesh, component::mat>();
+    glm::mat4 modelMat{1.f};
+    for (const auto &entity : view)
+    {
+        // (Structured bindings ftw!! ENTT is so cool)
+        auto &[mesh, material] = view.get<component::mesh, component::mat>(entity);
+
+        // Set shader and shader-params (only if not already set)
+        if (material.shader != currentShader) {
+            currentShader = material.shader;
+            glUseProgram(material.shader);
+            glUniformMatrix4fv(glGetUniformLocation(material.shader, "uProj"), 1, GL_FALSE, glm::value_ptr(camera.proj));
+            glUniformMatrix4fv(glGetUniformLocation(material.shader, "uView"), 1, GL_FALSE, glm::value_ptr(camera.view));
+        }
+
+        // Assign a model matrix if it exist
+        if (EM.has<component::trans>(entity)) {
+            const auto& transform = EM.get<component::trans>(entity);
+            modelMat = transform.mat();
+        }
+        glUniformMatrix4fv(glGetUniformLocation(material.shader, "uModel"), 1, GL_FALSE, glm::value_ptr(modelMat));
+
+        glBindVertexArray(mesh.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
+        if (mesh.bIndices)
+            glDrawElements(mesh.drawMode, mesh.indexCount, GL_UNSIGNED_INT, 0);
+        else
+            glDrawArrays(mesh.drawMode, 0, mesh.vertexCount);
+    }
+    glBindVertexArray(0); // no need to unbind it every time
+
+    // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
+    // -------------------------------------------------------------------------------
+    glfwSwapBuffers(wp);
+    glfwPollEvents();
+}
+
 int App::init(int currentReward)
 {
     if (1 < currentReward)
@@ -70,44 +166,127 @@ int App::exec()
     glfwMakeContextCurrent(wp);
 
     // ================== Setup scene ====================================
+    setupScene();
 
+    std::cout << "Setup took " << appTimer.elapsed<std::chrono::milliseconds>() << "ms." << std::endl;
+    appTimer.reset();
+    frameTimer.reset();
+
+    // render loop
+    // -----------
+    while (!glfwWindowShouldClose(wp))
+    {
+        gameloop();
+    }
+
+    // // optional: de-allocate all resources once they've outlived their purpose:
+    // // ------------------------------------------------------------------------
+    cleanupScene();
+
+    // glfw: terminate, clearing all previously allocated GLFW resources.
+    // ------------------------------------------------------------------
+    glfwTerminate();
+    return 0;
+}
+
+void App::setupScene()
+{
     Shader defaultShader{"src/shaders/default.vert", "src/shaders/default.frag"};
+    Shader colorShader{"src/shaders/default.vert", "src/shaders/color.frag"};
 
+    // Setup player
     auto entity = EM.create();
-    auto &mat = EM.emplace<component::mat>(entity, defaultShader.get());
+    EM.emplace<component::trans>(entity);
+    EM.emplace<component::metadata>(entity, "player");
+    auto &camera = EM.emplace<component::camera>(entity);
+    // camera.proj = glm::perspective(glm::radians(45.f), 4.f / 3.f, 0.1f, 100.f);
+    camera.proj = glm::mat4{1.f};
+    camera.view = glm::mat4{1.f};
+    playerEntity = entity;
+
+
+
+    // ------------- Axis: ------------------------------
+    entity = EM.create();
+    EM.emplace<component::mat>(entity, colorShader.get());
+    EM.emplace<component::metadata>(entity, "axis");
+    auto mesh = &EM.emplace<component::mesh>(entity);
+    // EM.emplace<component::trans>(entity);
+
+    std::vector<vertex> vertices{
+        {.normal = {1.f, 0.f, 0.f}},
+        {.pos = {1.f, 0.f, 0.f}, .normal = {1.f, 0.f, 0.f}},
+        {.normal = {0.f, 1.f, 0.f}},
+        {.pos = {0.f, 1.f, 0.f}, .normal = {0.f, 1.f, 0.f}},
+        {.normal = {0.f, 0.f, 1.f}},
+        {.pos = {0.f, 0.f, 1.f}, .normal = {0.f, 0.f, 1.f}}};
+    unsigned int VAO, VBO, EBO;
+    glGenVertexArrays(1, &mesh->VAO);
+    glBindVertexArray(mesh->VAO);
+
+    glGenBuffers(1, &mesh->VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vertex), vertices.data(), GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), nullptr);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(3 * sizeof(float)));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(6 * sizeof(float)));
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+
+    mesh->vertexCount = static_cast<unsigned int>(vertices.size());
+    mesh->drawMode = GL_LINES;
+
+
+
+
+    // ----------- Plane: ------------------------------
+    entity = EM.create();
+    EM.emplace<component::mat>(entity, defaultShader.get());
+    mesh = &EM.emplace<component::mesh>(entity);
+    EM.emplace<component::trans>(entity);
+    EM.emplace<component::metadata>(entity, "plane");
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
-    float vertices[] = {
-        0.5f, 0.5f, 0.0f,   // top right
-        0.5f, -0.5f, 0.0f,  // bottom right
-        -0.5f, -0.5f, 0.0f, // bottom left
-        -0.5f, 0.5f, 0.0f   // top left
+    vertices = {
+        {.pos{0.5f, 0.5f, 0.0f}, .normal{1.f, 0.f, 0.f}},   // top right
+        {.pos{0.5f, -0.5f, 0.0f}, .normal{0.f, 1.f, 0.f}},  // bottom right
+        {.pos{-0.5f, -0.5f, 0.0f}, .normal{0.f, 0.f, 1.f}}, // bottom left
+        {.pos{-0.5f, 0.5f, 0.0f}, .normal{1.f, 1.f, 0.f}}   // top left
     };
-    unsigned int indices[] = {
-        // note that we start from 0!
-        0, 1, 3, // first Triangle
-        1, 2, 3  // second Triangle
+
+    typedef std::array<unsigned int, 3> tri;
+    std::vector<tri> indices{
+        {0, 1, 3}, // first Triangle
+        {1, 2, 3}  // second Triangle
     };
-    unsigned int VBO, VAO, EBO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
+
+    glGenVertexArrays(1, &mesh->VAO);
+    glGenBuffers(1, &mesh->VBO);
+    glGenBuffers(1, &mesh->IBO);
     // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-    glBindVertexArray(VAO);
+    glBindVertexArray(mesh->VAO);
 
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vertex), vertices.data(), GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->IBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(tri), indices.data(), GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(3 * sizeof(float)));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(6 * sizeof(float)));
     glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
 
-    // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    mesh->vertexCount = static_cast<unsigned int>(vertices.size());
+    mesh->bIndices = true;
+    mesh->indexCount = static_cast<unsigned int>(indices.size() * sizeof(tri));
 
-    EM.emplace<component::mesh>(entity, VAO, static_cast<unsigned int>(sizeof(vertices)), static_cast<unsigned int>(sizeof(indices)));
+    // // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
+    // glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     // remember: do NOT unbind the EBO while a VAO is active as the bound element buffer object IS stored in the VAO; keep the EBO bound.
     //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -118,83 +297,19 @@ int App::exec()
 
     // uncomment this call to draw in wireframe polygons.
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-    std::cout << "Setup took " << appTimer.elapsed<std::chrono::milliseconds>() << "ms." << std::endl;
-    appTimer.reset();
-
-    Timer frameTimer{};
-
-    // render loop
-    // -----------
-    while (!glfwWindowShouldClose(wp))
-    {
-        // Find time since last frame
-        const auto deltaTime = frameTimer.elapsed<std::chrono::milliseconds>() * 0.001f;
-        frameTimer.reset();
-
-        showFPS(wp);
-
-        // input
-        // -----
-        processInput(wp);
-
-        // render
-        // ------
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        auto view = EM.view<component::mesh, component::mat>();
-        for (const auto &entity : view)
-        {
-            // (Structured bindings ftw!! ENTT is so cool)
-            auto &[mesh, material] = view.get<component::mesh, component::mat>(entity);
-
-            // draw our first triangle
-            glUseProgram(material.shader);
-            glBindVertexArray(mesh.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
-            if (mesh.bIndices)
-                glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
-            else
-                glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
-        }
-        glBindVertexArray(0); // no need to unbind it every time
-
-        // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
-        // -------------------------------------------------------------------------------
-        glfwSwapBuffers(wp);
-        glfwPollEvents();
-    }
-
-    // optional: de-allocate all resources once they've outlived their purpose:
-    // ------------------------------------------------------------------------
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteBuffers(1, &EBO);
-
-    // glfw: terminate, clearing all previously allocated GLFW resources.
-    // ------------------------------------------------------------------
-    glfwTerminate();
-    return 0;
 }
 
-void App::showFPS(GLFWwindow *wp)
+void App::cleanupScene()
 {
-    static Timer timer{};
-    static unsigned int frameCount{0};
-    auto elapsed = timer.elapsed<std::chrono::milliseconds>();
-    if (elapsed >= 1000)
+    auto view = EM.view<component::mesh>();
+    for (auto entity : view)
     {
-        const auto fps = frameCount * 1000.f / elapsed;
-        std::string title{"CodeOpenGLTesting, fps: " + std::to_string(fps)};
-        glfwSetWindowTitle(wp, title.c_str());
-        frameCount = 0;
-        timer.reset();
-    }
-    ++frameCount;
-}
+        auto &mesh = view.get<component::mesh>(entity);
 
-void App::processInput(GLFWwindow *wp)
-{
-    if (glfwGetKey(wp, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(wp, true);
+        if (mesh.bIndices)
+            glDeleteBuffers(1, &mesh.IBO);
+        
+        glDeleteBuffers(1, &mesh.VBO);
+        glDeleteVertexArrays(1, &mesh.VAO);
+    }
 }

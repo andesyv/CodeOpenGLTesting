@@ -19,27 +19,30 @@ class App
 {
 private:
     Timer appTimer{};
+    Timer frameTimer{};
     GLFWwindow *wp{nullptr};
 
     // Entity Manager
     entt::registry EM{};
+    entt::entity playerEntity{};
 
+
+
+    int initGLFW();
+    int initOpenGL();    
+    void showFPS();
+    // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
+    void processInput(float deltaTime = 1.f);
+    void gameloop();
 
 public:
     App() = default;
-
-    int initGLFW();
-    int initOpenGL();
+    
     // Recursive init function that uses rewards to calculate progress
     int init(int currentReward = 0);
-
     int exec();
-
-    void showFPS(GLFWwindow *wp);
-
-    // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
-    void processInput(GLFWwindow *wp);
-
+    void setupScene();
+    void cleanupScene();
 
 
     // Static members:
