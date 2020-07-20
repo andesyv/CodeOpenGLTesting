@@ -1,4 +1,5 @@
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp> // glm::quat
 #include <glm/gtc/matrix_transform.hpp>
 #include <glad/glad.h>
 #include <type_traits>
@@ -14,11 +15,15 @@ namespace component {
 struct trans
 {
     glm::vec3 pos{};
-    glm::vec3 rot{};
+    glm::quat rot{1.f, 0.f, 0.f, 0.f};
     glm::vec3 scale{1.f, 1.f, 1.f};
 
     glm::mat4 mat() const {
-        return glm::translate(glm::scale(glm::mat4{1.f}, scale), pos);
+        return glm::translate(glm::scale(glm::mat4{1.f}, scale), pos) * static_cast<glm::mat4>(rot);
+    }
+
+    static glm::mat4 createViewMat(const component::trans& comp) {
+        return static_cast<glm::mat4>(comp.rot) * glm::translate(glm::mat4{1.f}, -comp.pos);
     }
 };
 
@@ -26,6 +31,8 @@ struct camera
 {
     glm::mat4 proj;
     glm::mat4 view;
+    float pitch{0.f}, yaw{0.f};
+    float FOV{45.f};
 };
 
 // template <typename T>

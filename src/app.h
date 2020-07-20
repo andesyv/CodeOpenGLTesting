@@ -14,9 +14,11 @@
 // settings
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
+const float CAMERA_SPEED = 0.1f;
 
 class App
 {
+    friend class AppSingleton;
 private:
     Timer appTimer{};
     Timer frameTimer{};
@@ -25,6 +27,7 @@ private:
     // Entity Manager
     entt::registry EM{};
     entt::entity playerEntity{};
+    double mouseXPos{}, mouseYPos{};
 
 
 
@@ -33,10 +36,11 @@ private:
     void showFPS();
     // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
     void processInput(float deltaTime = 1.f);
+    void updateViewMatrix();
     void gameloop();
 
 public:
-    App() = default;
+    App();
     
     // Recursive init function that uses rewards to calculate progress
     int init(int currentReward = 0);
@@ -48,12 +52,7 @@ public:
     // Static members:
 
     // glfw: whenever the wp size changed (by OS or user resize) this callback function executes
-    static void framebuffer_size_callback(GLFWwindow *wp, int width, int height)
-    {
-        // make sure the viewport matches the new wp dimensions; note that width and
-        // height will be significantly larger than specified on retina displays.
-        glViewport(0, 0, width, height);
-    }
+    static void framebuffer_size_callback(GLFWwindow *wp, int width, int height);
 
     static void errorCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
     {
@@ -104,4 +103,36 @@ public:
         constexpr auto n = sizeof...(T);
         return enumToString<n>(arg, std::array<std::pair<GLenum, std::string>, n>{params...});
     }
+};
+
+
+/**
+ * Singleton class for App instances.
+ * Should exist one instance across threads
+ * which should be able to access a App instance
+ * on the specific thread.
+ */
+class AppSingleton
+{
+    friend App::App();
+private:
+    std::vector<App*> Instances;
+    AppSingleton() = default;
+
+public:
+    static AppSingleton& get() {
+        static AppSingleton singletonInstance{};
+        return singletonInstance;
+    }
+
+    App* find(GLFWwindow* wp) {
+        for (const auto& inst : Instances)
+            if (inst != nullptr && inst->wp != nullptr && inst->wp == wp)
+                return inst;
+        
+        return nullptr;
+    }
+
+    AppSingleton(const AppSingleton&) = delete;
+    AppSingleton(AppSingleton&&) = delete;
 };

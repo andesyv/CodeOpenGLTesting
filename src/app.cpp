@@ -2,6 +2,11 @@
 #include <glm/gtc/type_ptr.hpp> // For glm::value_ptr()
 #include <glm/gtc/matrix_transform.hpp> // For glm::perspective
 
+App::App()
+{
+    AppSingleton::get().Instances.push_back(this);
+}
+
 int App::initGLFW()
 {
     // glfw: initialize and configure
@@ -74,18 +79,54 @@ void App::processInput(float deltaTime)
         glfwSetWindowShouldClose(wp, true);
 
     
+    double xPos, yPos;
+    glfwGetCursorPos(wp, &xPos, &yPos);
+    double deltaX{xPos - mouseXPos}, deltaY{yPos - mouseYPos};
+    deltaX *= deltaTime * CAMERA_SPEED;
+    deltaY *= deltaTime * CAMERA_SPEED;
+    mouseXPos = xPos;
+    mouseYPos = yPos;
+
+
     auto& playerTrans = EM.get<component::trans>(playerEntity);
-    if (glfwGetKey(wp, GLFW_KEY_W) == GLFW_PRESS)
-        playerTrans.pos.y += deltaTime;
+    if (glfwGetMouseButton(wp, 1) == GLFW_PRESS)
+    {
+        if (glfwGetKey(wp, GLFW_KEY_SPACE) == GLFW_PRESS || glfwGetKey(wp, GLFW_KEY_E) == GLFW_PRESS)
+            playerTrans.pos.y += deltaTime;
 
-    if (glfwGetKey(wp, GLFW_KEY_S) == GLFW_PRESS)
-        playerTrans.pos.y -= deltaTime;
+        if (glfwGetKey(wp, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(wp, GLFW_KEY_Q) == GLFW_PRESS)
+            playerTrans.pos.y -= deltaTime;
 
-    if (glfwGetKey(wp, GLFW_KEY_D) == GLFW_PRESS)
-        playerTrans.pos.x += deltaTime;
+        if (glfwGetKey(wp, GLFW_KEY_D) == GLFW_PRESS)
+            playerTrans.pos.x += deltaTime;
 
-    if (glfwGetKey(wp, GLFW_KEY_A) == GLFW_PRESS)
-        playerTrans.pos.x -= deltaTime;
+        if (glfwGetKey(wp, GLFW_KEY_A) == GLFW_PRESS)
+            playerTrans.pos.x -= deltaTime;
+
+        // W and S are inverted because z in the coordinate system is inverted
+        if (glfwGetKey(wp, GLFW_KEY_W) == GLFW_PRESS)
+            playerTrans.pos.z -= deltaTime;
+
+        if (glfwGetKey(wp, GLFW_KEY_S) == GLFW_PRESS)
+            playerTrans.pos.z += deltaTime;
+        
+        /**
+         * Since it's only the viewmatrix who's using the player transformation
+         * I might aswell just use it to store the pitch and yaw and then
+         * later convert it to a normal quaternion rotation when using it in the
+         * viewmatrix.
+         */
+        playerTrans.rot.x += deltaX;
+        playerTrans.rot.y += deltaY;
+    }
+}
+
+void App::updateViewMatrix()
+{
+    auto& [trans, camera] = EM.get<component::trans, component::camera>(playerEntity);
+    auto cameraRotation = glm::quat{std::cosf(trans.rot.y * 0.5f), std::sinf(trans.rot.y * 0.5f), 0.f, 0.f} *
+                    glm::quat{std::cosf(trans.rot.x * 0.5f), 0.f, std::sinf(trans.rot.x * 0.5f), 0.f};
+    camera.view = component::trans::createViewMat({.pos{trans.pos}, .rot{cameraRotation}});
 }
 
 void App::gameloop()
@@ -99,6 +140,7 @@ void App::gameloop()
     // input
     // -----
     processInput(deltaTime);
+    updateViewMatrix();
 
     // render
     // ------
@@ -108,12 +150,12 @@ void App::gameloop()
     glUseProgram(0);
     unsigned int currentShader{0};
 
-    auto& camera = EM.get<component::camera>(playerEntity);
+    const auto& camera = EM.get<component::camera>(playerEntity);
 
     auto view = EM.view<component::mesh, component::mat>();
-    glm::mat4 modelMat{1.f};
     for (const auto &entity : view)
     {
+        glm::mat4 modelMat{1.f};
         // (Structured bindings ftw!! ENTT is so cool)
         auto &[mesh, material] = view.get<component::mesh, component::mat>(entity);
 
@@ -127,7 +169,9 @@ void App::gameloop()
 
         // Assign a model matrix if it exist
         if (EM.has<component::trans>(entity)) {
-            const auto& transform = EM.get<component::trans>(entity);
+            auto& transform = EM.get<component::trans>(entity);
+            transform.rot *= glm::quat{std::cosf(deltaTime * 0.5f), glm::vec3{0.f, std::sinf(deltaTime * 0.5f), 0.f}};
+            transform.pos.x += deltaTime * 0.1f;
             modelMat = transform.mat();
         }
         glUniformMatrix4fv(glGetUniformLocation(material.shader, "uModel"), 1, GL_FALSE, glm::value_ptr(modelMat));
@@ -164,6 +208,8 @@ int App::exec()
         return -1;
 
     glfwMakeContextCurrent(wp);
+    // Reset cursor position
+    glfwGetCursorPos(wp, &mouseXPos, &mouseYPos);
 
     // ================== Setup scene ====================================
     setupScene();
@@ -196,11 +242,17 @@ void App::setupScene()
 
     // Setup player
     auto entity = EM.create();
-    EM.emplace<component::trans>(entity);
+    EM.emplace<component::trans>(entity).pos.z = 5.f;
     EM.emplace<component::metadata>(entity, "player");
     auto &camera = EM.emplace<component::camera>(entity);
-    // camera.proj = glm::perspective(glm::radians(45.f), 4.f / 3.f, 0.1f, 100.f);
-    camera.proj = glm::mat4{1.f};
+    int width, height;
+    glfwGetFramebufferSize(wp, &width, &height);
+    /**
+     * glm::perspective makes a right hand coordinate system,
+     * meaning that x is right, y is up and negative z is forward.
+     * (z is flipped from world space to window space)
+     */
+    camera.proj = glm::perspective(glm::radians(camera.FOV), static_cast<float>(width) / height, 0.1f, 100.f);
     camera.view = glm::mat4{1.f};
     playerEntity = entity;
 
@@ -296,7 +348,7 @@ void App::setupScene()
     glBindVertexArray(0);
 
     // uncomment this call to draw in wireframe polygons.
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 void App::cleanupScene()
@@ -312,4 +364,21 @@ void App::cleanupScene()
         glDeleteBuffers(1, &mesh.VBO);
         glDeleteVertexArrays(1, &mesh.VAO);
     }
+}
+
+void App::framebuffer_size_callback(GLFWwindow *wp, int width, int height)
+{
+    // make sure the viewport matches the new wp dimensions; note that width and
+    // height will be significantly larger than specified on retina displays.
+    glViewport(0, 0, width, height);
+
+    auto app = AppSingleton::get().find(wp);
+    assert(app != nullptr);
+    auto &camera = app->EM.get<component::camera>(app->playerEntity);
+    /**
+         * glm::perspective makes a right hand coordinate system,
+         * meaning that x is right, y is up and negative z is forward.
+         * (z is flipped from world space to window space)
+         */
+    camera.proj = glm::perspective(glm::radians(camera.FOV), static_cast<float>(width) / height, 0.1f, 100.f);
 }
