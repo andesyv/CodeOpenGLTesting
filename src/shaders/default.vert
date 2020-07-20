@@ -1,4 +1,6 @@
 #version 330 core
+// Custom #include (see shader.h)
+#include "src/shaders/math.vert"
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aNormal;
 

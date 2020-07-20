@@ -13,32 +13,46 @@ private:
 public:
     Shader(const std::string& vPath, const std::string& fPath)
     {
-        std::ifstream input{vPath, std::ifstream::in | std::ifstream::ate};
-        if (!input)
+        std::string vertexSource{}, fragmentSource{};
+        // std::ifstream input{vPath, std::ifstream::in | std::ifstream::ate};
+        if (!appendFile(vertexSource, vPath))
         {
             std::cout << "SHADER ERROR: Vertex path not found." << std::endl;
             return;
         }
 
-        std::string vertexSource{}, fragmentSource{};
-        vertexSource.reserve(input.tellg());
-        input.seekg(0, input.beg);
-        vertexSource.insert(vertexSource.begin(), std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{});
-        auto vSourcePtr = vertexSource.c_str();
-        input.close();
+        std::cout << "Vertex shader content: " << vertexSource << std::endl; 
 
-        input.open(fPath, std::ifstream::in | std::ifstream::ate);
-        if (!input)
+        // vertexSource.reserve(input.tellg());
+        // input.seekg(0, input.beg);
+        // std::string line;
+        // while (std::getline(input, line)) {
+        //     if (line.starts_with("#include")) {
+        //         // std::cout << "skipping: " << line << std::endl;
+        //         continue;
+        //     }
+        //     vertexSource.append(line).append(1, '\n');
+        // }
+        // // vertexSource.insert(vertexSource.begin(), std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{});
+        auto vSourcePtr = vertexSource.c_str();
+        // input.close();
+
+        // input.open(fPath, std::ifstream::in | std::ifstream::ate);
+        if (!appendFile(fragmentSource, fPath))
         {
             std::cout << "SHADER ERROR: Fragment path not found." << std::endl;
             return;
         }
 
-        fragmentSource.reserve(input.tellg());
-        input.seekg(0, input.beg);
-        fragmentSource.insert(fragmentSource.begin(), std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{});
+        // fragmentSource.reserve(input.tellg());
+        // input.seekg(0, input.beg);
+        // while (std::getline(input, line, '\n'))
+        // {
+        //     fragmentSource.append(line).append(1, '\n');
+        // }
+        // // fragmentSource.insert(fragmentSource.begin(), std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{});
         auto fSourcePtr = fragmentSource.c_str();
-        input.close();
+        // input.close();
         
         // build and compile our shader program
         // ------------------------------------
@@ -92,4 +106,36 @@ public:
 
     int get() const { return program; }
     int operator* () const { return get(); }
+
+    bool appendFile(std::string& str, std::string_view filename)
+    {
+        std::ifstream ifs{std::string{filename}, std::ifstream::in | std::ifstream::ate};
+        std::cout << "File path is: " << filename << ", which as a string is: " << std::string { filename } << std::endl;
+        if (!ifs)
+        {
+            return false;
+        }
+
+        // Reserve more space for string
+        str.reserve(str.size() + ifs.tellg());
+        ifs.seekg(0, ifs.beg);
+        std::string line;
+        while (std::getline(ifs, line))
+        {
+            // Recursive reading of file
+            if (line.starts_with("#include"))
+            {
+                std::string_view path{line};
+                const auto offset{path.find_first_of('"') + 1};
+                path = path.substr(offset, path.find_last_of('"') - offset);
+                if (0 < path.size() && appendFile(str, path))
+                    continue;
+                else
+                    return false;
+            }
+            str.append(line).append(1, '\n');
+        }
+
+        return true;
+    }
 };
