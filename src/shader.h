@@ -21,8 +21,6 @@ public:
             return;
         }
 
-        std::cout << "Vertex shader content: " << vertexSource << std::endl; 
-
         // vertexSource.reserve(input.tellg());
         // input.seekg(0, input.beg);
         // std::string line;
@@ -110,7 +108,6 @@ public:
     bool appendFile(std::string& str, std::string_view filename)
     {
         std::ifstream ifs{std::string{filename}, std::ifstream::in | std::ifstream::ate};
-        std::cout << "File path is: " << filename << ", which as a string is: " << std::string { filename } << std::endl;
         if (!ifs)
         {
             return false;

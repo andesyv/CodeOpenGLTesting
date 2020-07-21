@@ -1,6 +1,7 @@
 #include "app.h"
 #include <glm/gtc/type_ptr.hpp> // For glm::value_ptr()
 #include <glm/gtc/matrix_transform.hpp> // For glm::perspective
+#include <glm/gtc/quaternion.hpp>       // glm::quat
 
 App::App()
 {
@@ -88,45 +89,34 @@ void App::processInput(float deltaTime)
     mouseYPos = yPos;
 
 
-    auto& playerTrans = EM.get<component::trans>(playerEntity);
+    auto& [pTrans, pCamera] = EM.get<component::trans, component::camera>(playerEntity);
     if (glfwGetMouseButton(wp, 1) == GLFW_PRESS)
     {
         if (glfwGetKey(wp, GLFW_KEY_SPACE) == GLFW_PRESS || glfwGetKey(wp, GLFW_KEY_E) == GLFW_PRESS)
-            playerTrans.pos.y += deltaTime;
+            pTrans.pos += pTrans.upVector(glm::conjugate(pTrans.rot)) * deltaTime;
 
         if (glfwGetKey(wp, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(wp, GLFW_KEY_Q) == GLFW_PRESS)
-            playerTrans.pos.y -= deltaTime;
+            pTrans.pos -= pTrans.upVector(glm::conjugate(pTrans.rot)) * deltaTime;
 
         if (glfwGetKey(wp, GLFW_KEY_D) == GLFW_PRESS)
-            playerTrans.pos.x += deltaTime;
+            pTrans.pos += pTrans.rightVector(glm::conjugate(pTrans.rot)) * deltaTime;
 
         if (glfwGetKey(wp, GLFW_KEY_A) == GLFW_PRESS)
-            playerTrans.pos.x -= deltaTime;
+            pTrans.pos -= pTrans.rightVector(glm::conjugate(pTrans.rot)) * deltaTime;
 
         // W and S are inverted because z in the coordinate system is inverted
         if (glfwGetKey(wp, GLFW_KEY_W) == GLFW_PRESS)
-            playerTrans.pos.z -= deltaTime;
+            pTrans.pos -= pTrans.forwardVector(glm::conjugate(pTrans.rot)) * deltaTime;
 
         if (glfwGetKey(wp, GLFW_KEY_S) == GLFW_PRESS)
-            playerTrans.pos.z += deltaTime;
+            pTrans.pos += pTrans.forwardVector(glm::conjugate(pTrans.rot)) * deltaTime;
         
-        /**
-         * Since it's only the viewmatrix who's using the player transformation
-         * I might aswell just use it to store the pitch and yaw and then
-         * later convert it to a normal quaternion rotation when using it in the
-         * viewmatrix.
-         */
-        playerTrans.rot.x += deltaX;
-        playerTrans.rot.y += deltaY;
+        pCamera.pitch += deltaY;
+        pCamera.yaw += deltaX;
+        pTrans.rot = glm::quat{std::cosf(pCamera.pitch * 0.5f), std::sinf(pCamera.pitch * 0.5f), 0.f, 0.f} *
+                     glm::quat{std::cosf(pCamera.yaw * 0.5f), 0.f, std::sinf(pCamera.yaw * 0.5f), 0.f};
+        pCamera.view = component::trans::createViewMat(pTrans);
     }
-}
-
-void App::updateViewMatrix()
-{
-    auto& [trans, camera] = EM.get<component::trans, component::camera>(playerEntity);
-    auto cameraRotation = glm::quat{std::cosf(trans.rot.y * 0.5f), std::sinf(trans.rot.y * 0.5f), 0.f, 0.f} *
-                    glm::quat{std::cosf(trans.rot.x * 0.5f), 0.f, std::sinf(trans.rot.x * 0.5f), 0.f};
-    camera.view = component::trans::createViewMat({.pos{trans.pos}, .rot{cameraRotation}});
 }
 
 void App::gameloop()
@@ -140,17 +130,16 @@ void App::gameloop()
     // input
     // -----
     processInput(deltaTime);
-    updateViewMatrix();
 
     // render
     // ------
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glUseProgram(0);
     unsigned int currentShader{0};
 
-    const auto& camera = EM.get<component::camera>(playerEntity);
+    const auto& [camera, playerTrans] = EM.get<component::camera, component::trans>(playerEntity);
 
     auto view = EM.view<component::mesh, component::mat>();
     for (const auto &entity : view)
@@ -171,7 +160,7 @@ void App::gameloop()
         if (EM.has<component::trans>(entity)) {
             auto& transform = EM.get<component::trans>(entity);
             transform.rot *= glm::quat{std::cosf(deltaTime * 0.5f), glm::vec3{0.f, std::sinf(deltaTime * 0.5f), 0.f}};
-            transform.pos.x += deltaTime * 0.1f;
+            // transform.pos.x += deltaTime * 0.1f;
             modelMat = transform.mat();
         }
         glUniformMatrix4fv(glGetUniformLocation(material.shader, "uModel"), 1, GL_FALSE, glm::value_ptr(modelMat));
@@ -240,6 +229,11 @@ void App::setupScene()
     Shader defaultShader{"src/shaders/default.vert", "src/shaders/default.frag"};
     Shader colorShader{"src/shaders/default.vert", "src/shaders/color.frag"};
 
+    glEnable(GL_CULL_FACE);
+    // glFrontFace()
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+
     // Setup player
     auto entity = EM.create();
     EM.emplace<component::trans>(entity).pos.z = 5.f;
@@ -294,24 +288,59 @@ void App::setupScene()
 
 
     // ----------- Plane: ------------------------------
-    entity = EM.create();
+    auto cubeEnt = entity = EM.create();
     EM.emplace<component::mat>(entity, defaultShader.get());
     mesh = &EM.emplace<component::mesh>(entity);
     EM.emplace<component::trans>(entity);
-    EM.emplace<component::metadata>(entity, "plane");
+    EM.emplace<component::metadata>(entity, "cube");
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
     vertices = {
-        {.pos{0.5f, 0.5f, 0.0f}, .normal{1.f, 0.f, 0.f}},   // top right
-        {.pos{0.5f, -0.5f, 0.0f}, .normal{0.f, 1.f, 0.f}},  // bottom right
-        {.pos{-0.5f, -0.5f, 0.0f}, .normal{0.f, 0.f, 1.f}}, // bottom left
-        {.pos{-0.5f, 0.5f, 0.0f}, .normal{1.f, 1.f, 0.f}}   // top left
+        {.pos{-0.5f, 0.5f, 0.5f}, .normal{0.f, 0.f, 1.f}},  // top left
+        {.pos{-0.5f, -0.5f, 0.5f}, .normal{0.f, 0.f, 1.f}}, // bottom left
+        {.pos{0.5f, -0.5f, 0.5f}, .normal{0.f, 0.f, 1.f}},  // bottom right
+        {.pos{0.5f, 0.5f, 0.5f}, .normal{0.f, 0.f, 1.f}},   // top right
+
+        {.pos{0.5f, 0.5f, -0.5f}, .normal{0.f, 0.f, -1.f}},   // top right
+        {.pos{0.5f, -0.5f, -0.5f}, .normal{0.f, 0.f, -1.f}},  // bottom right
+        {.pos{-0.5f, -0.5f, -0.5f}, .normal{0.f, 0.f, -1.f}}, // bottom left
+        {.pos{-0.5f, 0.5f, -0.5f}, .normal{0.f, 0.f, -1.f}},  // top left
+
+        {.pos{0.5f, -0.5f, 0.5f}, .normal{1.f, 0.f, 0.f}},
+        {.pos{0.5f, -0.5f, -0.5f}, .normal{1.f, 0.f, 0.f}},
+        {.pos{0.5f, 0.5f, -0.5f}, .normal{1.f, 0.f, 0.f}},
+        {.pos{0.5f, 0.5f, 0.5f}, .normal{1.f, 0.f, 0.f}},
+
+        {.pos{-0.5f, 0.5f, 0.5f}, .normal{-1.f, 0.f, 0.f}},
+        {.pos{-0.5f, 0.5f, -0.5f}, .normal{-1.f, 0.f, 0.f}},
+        {.pos{-0.5f, -0.5f, -0.5f}, .normal{-1.f, 0.f, 0.f}},
+        {.pos{-0.5f, -0.5f, 0.5f}, .normal{-1.f, 0.f, 0.f}},
+
+        {.pos{0.5f, 0.5f, -0.5f}, .normal{0.f, 1.f, 0.f}},
+        {.pos{-0.5f, 0.5f, -0.5f}, .normal{0.f, 1.f, 0.f}},
+        {.pos{-0.5f, 0.5f, 0.5f}, .normal{0.f, 1.f, 0.f}},
+        {.pos{0.5f, 0.5f, 0.5f}, .normal{0.f, 1.f, 0.f}},
+
+        {.pos{0.5f, -0.5f, 0.5f}, .normal{0.f, -1.f, 0.f}},
+        {.pos{-0.5f, -0.5f, 0.5f}, .normal{0.f, -1.f, 0.f}},
+        {.pos{-0.5f, -0.5f, -0.5f}, .normal{0.f, -1.f, 0.f}},
+        {.pos{0.5f, -0.5f, -0.5f}, .normal{0.f, -1.f, 0.f}}
     };
 
     typedef std::array<unsigned int, 3> tri;
     std::vector<tri> indices{
         {0, 1, 3}, // first Triangle
-        {1, 2, 3}  // second Triangle
+        {1, 2, 3},  // second Triangle
+        {4, 5, 7},
+        {5, 6, 7},
+        {8, 9, 11},
+        {9, 10, 11},
+        {12, 13, 15},
+        {13, 14, 15},
+        {16, 17, 19},
+        {17, 18, 19},
+        {20, 21, 23},
+        {21, 22, 23}
     };
 
     glGenVertexArrays(1, &mesh->VAO);
@@ -325,6 +354,9 @@ void App::setupScene()
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->IBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(tri), indices.data(), GL_STATIC_DRAW);
+    // GLint bufferSize;
+    // glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &bufferSize);
+    // std::cout << "buffer size: " << bufferSize << std::endl;
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(3 * sizeof(float)));
@@ -335,7 +367,10 @@ void App::setupScene()
 
     mesh->vertexCount = static_cast<unsigned int>(vertices.size());
     mesh->bIndices = true;
-    mesh->indexCount = static_cast<unsigned int>(indices.size() * sizeof(tri));
+    // std::tuple_size to get length of array. Surprisingly that it doesn't already exist in std::array
+    // https://stackoverflow.com/questions/21936507/why-isnt-stdarraysize-static
+    mesh->indexCount = static_cast<unsigned int>(indices.size() * std::tuple_size<tri>::value);
+    std::cout << "Index count: " << mesh->indexCount << ", also size of triangle is: " << sizeof(tri) << std::endl;
 
     // // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
     // glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -343,12 +378,31 @@ void App::setupScene()
     // remember: do NOT unbind the EBO while a VAO is active as the bound element buffer object IS stored in the VAO; keep the EBO bound.
     //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
+
+
+
+
+    
+
+
+    for (unsigned int i{0}, max{100}; i < max; ++i) {
+        entity = EM.create();
+        EM.emplace<component::mat>(entity, colorShader.get());
+        auto& trans = EM.emplace<component::trans>(entity);
+        float deg = i * 6.28f / max;
+        trans.pos = glm::vec3{std::cosf(deg) * 5.f, 0.f, std::sinf(deg) * 5.f};
+        trans.rot = glm::quat{std::cosf(deg * 0.5f), 0.f, std::sinf(deg * 0.5f), 0.f};
+        // Copy the mesh component (use same VAO)
+        EM.emplace<component::mesh>(entity, EM.get<component::mesh>(cubeEnt));
+        EM.emplace<component::metadata>(entity, std::string{"plane "}.append(std::to_string(i)));
+    }
+
     // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
     // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
     glBindVertexArray(0);
 
     // uncomment this call to draw in wireframe polygons.
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 }
 
 void App::cleanupScene()

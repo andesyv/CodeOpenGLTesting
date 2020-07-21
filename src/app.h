@@ -36,7 +36,6 @@ private:
     void showFPS();
     // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
     void processInput(float deltaTime = 1.f);
-    void updateViewMatrix();
     void gameloop();
 
 public:
