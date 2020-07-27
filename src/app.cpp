@@ -3,6 +3,7 @@
 #include <glm/gtc/matrix_transform.hpp> // For glm::perspective
 #include <glm/gtc/quaternion.hpp>       // glm::quat
 #include <cstdlib>                      // For std::rand()
+#include "shapes.h"
 
 App::App()
 {
@@ -308,20 +309,13 @@ void App::setupScene()
     auto mesh = &EM.emplace<component::mesh>(entity);
     // EM.emplace<component::trans>(entity);
 
-    std::vector<vertex> vertices{
-        {.normal = {1.f, 0.f, 0.f}},
-        {.pos = {1.f, 0.f, 0.f}, .normal = {1.f, 0.f, 0.f}},
-        {.normal = {0.f, 1.f, 0.f}},
-        {.pos = {0.f, 1.f, 0.f}, .normal = {0.f, 1.f, 0.f}},
-        {.normal = {0.f, 0.f, 1.f}},
-        {.pos = {0.f, 0.f, 1.f}, .normal = {0.f, 0.f, 1.f}}};
     unsigned int VAO, VBO, EBO;
     glGenVertexArrays(1, &mesh->VAO);
     glBindVertexArray(mesh->VAO);
 
     glGenBuffers(1, &mesh->VBO);
     glBindBuffer(GL_ARRAY_BUFFER, mesh->VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vertex), vertices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(shapes::axis), shapes::axis.data(), GL_STATIC_DRAW);
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), nullptr);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(3 * sizeof(float)));
@@ -330,7 +324,7 @@ void App::setupScene()
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
 
-    mesh->vertexCount = static_cast<unsigned int>(vertices.size());
+    mesh->vertexCount = static_cast<unsigned int>(shapes::axis.size());
     mesh->drawMode = GL_LINES;
 
 
@@ -338,59 +332,12 @@ void App::setupScene()
 
     // ----------- Cube: ------------------------------
     auto cubeEnt = entity = EM.create();
-    // EM.emplace<component::mat>(entity, colorShader.get());
+    EM.emplace<component::mat>(entity, colorShader.get());
     mesh = &EM.emplace<component::mesh>(entity);
-    // EM.emplace<component::trans>(entity);
+    EM.emplace<component::trans>(entity);
     EM.emplace<component::metadata>(entity, "cube");
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
-    vertices = {
-        {.pos{-0.5f, 0.5f, 0.5f}, .normal{0.f, 0.f, 1.f}},  // top left
-        {.pos{-0.5f, -0.5f, 0.5f}, .normal{0.f, 0.f, 1.f}}, // bottom left
-        {.pos{0.5f, -0.5f, 0.5f}, .normal{0.f, 0.f, 1.f}},  // bottom right
-        {.pos{0.5f, 0.5f, 0.5f}, .normal{0.f, 0.f, 1.f}},   // top right
-
-        {.pos{0.5f, 0.5f, -0.5f}, .normal{0.f, 0.f, -1.f}},   // top right
-        {.pos{0.5f, -0.5f, -0.5f}, .normal{0.f, 0.f, -1.f}},  // bottom right
-        {.pos{-0.5f, -0.5f, -0.5f}, .normal{0.f, 0.f, -1.f}}, // bottom left
-        {.pos{-0.5f, 0.5f, -0.5f}, .normal{0.f, 0.f, -1.f}},  // top left
-
-        {.pos{0.5f, -0.5f, 0.5f}, .normal{1.f, 0.f, 0.f}},
-        {.pos{0.5f, -0.5f, -0.5f}, .normal{1.f, 0.f, 0.f}},
-        {.pos{0.5f, 0.5f, -0.5f}, .normal{1.f, 0.f, 0.f}},
-        {.pos{0.5f, 0.5f, 0.5f}, .normal{1.f, 0.f, 0.f}},
-
-        {.pos{-0.5f, 0.5f, 0.5f}, .normal{-1.f, 0.f, 0.f}},
-        {.pos{-0.5f, 0.5f, -0.5f}, .normal{-1.f, 0.f, 0.f}},
-        {.pos{-0.5f, -0.5f, -0.5f}, .normal{-1.f, 0.f, 0.f}},
-        {.pos{-0.5f, -0.5f, 0.5f}, .normal{-1.f, 0.f, 0.f}},
-
-        {.pos{0.5f, 0.5f, -0.5f}, .normal{0.f, 1.f, 0.f}},
-        {.pos{-0.5f, 0.5f, -0.5f}, .normal{0.f, 1.f, 0.f}},
-        {.pos{-0.5f, 0.5f, 0.5f}, .normal{0.f, 1.f, 0.f}},
-        {.pos{0.5f, 0.5f, 0.5f}, .normal{0.f, 1.f, 0.f}},
-
-        {.pos{0.5f, -0.5f, 0.5f}, .normal{0.f, -1.f, 0.f}},
-        {.pos{-0.5f, -0.5f, 0.5f}, .normal{0.f, -1.f, 0.f}},
-        {.pos{-0.5f, -0.5f, -0.5f}, .normal{0.f, -1.f, 0.f}},
-        {.pos{0.5f, -0.5f, -0.5f}, .normal{0.f, -1.f, 0.f}}
-    };
-
-    typedef std::array<unsigned int, 3> tri;
-    std::vector<tri> indices{
-        {0, 1, 3}, // first Triangle
-        {1, 2, 3},  // second Triangle
-        {4, 5, 7},
-        {5, 6, 7},
-        {8, 9, 11},
-        {9, 10, 11},
-        {12, 13, 15},
-        {13, 14, 15},
-        {16, 17, 19},
-        {17, 18, 19},
-        {20, 21, 23},
-        {21, 22, 23}
-    };
 
     glGenVertexArrays(1, &mesh->VAO);
     glGenBuffers(1, &mesh->VBO);
@@ -399,10 +346,10 @@ void App::setupScene()
     glBindVertexArray(mesh->VAO);
 
     glBindBuffer(GL_ARRAY_BUFFER, mesh->VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vertex), vertices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(shapes::cube), shapes::cube.data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->IBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(tri), indices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(shapes::cubeIndices), shapes::cubeIndices.data(), GL_STATIC_DRAW);
     // GLint bufferSize;
     // glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &bufferSize);
     // std::cout << "buffer size: " << bufferSize << std::endl;
@@ -414,11 +361,11 @@ void App::setupScene()
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
 
-    mesh->vertexCount = static_cast<unsigned int>(vertices.size());
+    mesh->vertexCount = static_cast<unsigned int>(shapes::cube.size());
     mesh->bIndices = true;
     // std::tuple_size to get length of array. Surprisingly that it doesn't already exist in std::array
     // https://stackoverflow.com/questions/21936507/why-isnt-stdarraysize-static
-    mesh->indexCount = static_cast<unsigned int>(indices.size() * std::tuple_size<tri>::value);
+    mesh->indexCount = static_cast<unsigned int>(shapes::cubeIndices.size());
 
     // // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
     // glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -472,17 +419,8 @@ void App::setupScene()
     
     glCreateBuffers(1, &mesh->VBO);
     glBindBuffer(GL_ARRAY_BUFFER, mesh->VBO);
-    vertices = {
-        {.pos{0.5f, 0.f, -0.5f}, .normal{0.f, 1.f, 0.f}},
-        {.pos{-0.5f, 0.f, -0.5f}, .normal{0.f, 1.f, 0.f}},
-        {.pos{-0.5f, 0.f, 0.5f}, .normal{0.f, 1.f, 0.f}},
-
-        {.pos{-0.5f, 0.f, 0.5f}, .normal{0.f, 1.f, 0.f}},
-        {.pos{0.5f, 0.f, 0.5f}, .normal{0.f, 1.f, 0.f}},
-        {.pos{0.5f, 0.f, -0.5f}, .normal{0.f, 1.f, 0.f}}
-    };
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vertex), vertices.data(), GL_STATIC_DRAW);
-    mesh->vertexCount = vertices.size();
+    glBufferData(GL_ARRAY_BUFFER, sizeof(shapes::plane), shapes::plane.data(), GL_STATIC_DRAW);
+    mesh->vertexCount = static_cast<unsigned int>(shapes::plane.size());
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(3 * sizeof(float)));

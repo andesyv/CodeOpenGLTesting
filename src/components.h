@@ -1,3 +1,6 @@
+#ifndef COMPONENTS_H
+#define COMPONENTS_H
+
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp> // glm::quat
 #include <glm/gtc/matrix_transform.hpp>
@@ -120,3 +123,5 @@ struct phys
     glm::vec3 vel{0.f, 0.f, 0.f};
 };
 }
+
+#endif // COMPONENTS_H
