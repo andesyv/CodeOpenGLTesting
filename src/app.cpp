@@ -377,36 +377,6 @@ void App::setupScene()
 
 
 
-    
-
-    auto getRandDeg = [](){
-        return (std::rand() % 100) * 0.01f * 6.28f;
-    };
-    auto getRandPointInUnitSphere = [=](){
-        auto x{std::rand() % 100 * 0.01f * 6.28f}, y{std::acosf(std::rand() % 100 * 0.02f - 1)};
-        // std::cout << "x, y: " << x << ", " << y << std::endl;
-        return glm::vec3{std::sinf(y) * std::cosf(x), std::sinf(y) * std::sinf(x), std::cosf(y)};
-    };
-    auto getRandColor = []() {
-        return glm::vec3{rand() % 100 * 0.01f, rand() % 100 * 0.01f, rand() % 100 * 0.01f};
-    };
-    for (unsigned int i{0}, max{30}; i < max; ++i) {
-        entity = EM.create();
-        EM.emplace<component::mat>(entity, phongShader.get(), getRandColor());
-        auto& trans = EM.emplace<component::trans>(entity);
-        auto deg = getRandDeg();
-        auto dir = getRandPointInUnitSphere();
-        // std::cout << "Rand deg : " << deg << ", rand dir: " << dir.x << ", " << dir.y << ", " << dir.z << std::endl;
-        trans.pos = dir * (std::rand() % 100 * 0.1f + 10.f);
-        trans.rot = glm::quat{std::cosf(deg * 0.5f), dir * std::sinf(deg * 0.5f)};
-        // Copy the mesh component (use same VAO)
-        EM.emplace<component::mesh>(entity, EM.get<component::mesh>(cubeEnt));
-        EM.emplace<component::metadata>(entity, std::string{"plane "}.append(std::to_string(i)));
-        EM.emplace<component::phys>(entity, 10000.f, dir * 0.f);
-    }
-
-
-
 
 
     entity = EM.create();
@@ -428,6 +398,69 @@ void App::setupScene()
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
+
+
+
+
+
+    // --------------------------- Sphere ----------------------------
+    entity = EM.create();
+    auto sphereEnt = entity;
+    EM.emplace<component::mat>(entity, colorShader.get(), glm::vec3{1.f, 0.f, 0.f});
+    EM.emplace<component::trans>(entity);
+    EM.emplace<component::metadata>(entity, "ball");
+    mesh = &EM.emplace<component::mesh>(entity);
+    glCreateVertexArrays(1, &mesh->VAO);
+    glBindVertexArray(mesh->VAO);
+
+    glCreateBuffers(1, &mesh->VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->VBO);
+    auto ballVertices = shapes::cubeSphere(2);
+    // Have to use ballvertice.size() * sizeof(vertex) because it's a std::vector
+    glBufferData(GL_ARRAY_BUFFER, ballVertices.size() * sizeof(vertex), ballVertices.data(), GL_STATIC_DRAW);
+    mesh->vertexCount = static_cast<unsigned int>(ballVertices.size());
+    mesh->drawMode = GL_TRIANGLES;
+    mesh->bIndices = false;
+    
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(3 * sizeof(float)));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(6 * sizeof(float)));
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+
+
+
+
+
+
+    auto getRandDeg = []() {
+        return (std::rand() % 100) * 0.01f * 6.28f;
+    };
+    auto getRandPointInUnitSphere = [=]() {
+        auto x{std::rand() % 100 * 0.01f * 6.28f}, y{std::acosf(std::rand() % 100 * 0.02f - 1)};
+        // std::cout << "x, y: " << x << ", " << y << std::endl;
+        return glm::vec3{std::sinf(y) * std::cosf(x), std::sinf(y) * std::sinf(x), std::cosf(y)};
+    };
+    auto getRandColor = []() {
+        return glm::vec3{rand() % 100 * 0.01f, rand() % 100 * 0.01f, rand() % 100 * 0.01f};
+    };
+    for (unsigned int i{0}, max{30}; i < max; ++i)
+    {
+        entity = EM.create();
+        EM.emplace<component::mat>(entity, phongShader.get(), getRandColor());
+        auto &trans = EM.emplace<component::trans>(entity);
+        auto deg = getRandDeg();
+        auto dir = getRandPointInUnitSphere();
+        // std::cout << "Rand deg : " << deg << ", rand dir: " << dir.x << ", " << dir.y << ", " << dir.z << std::endl;
+        trans.pos = dir * (std::rand() % 100 * 0.1f + 10.f);
+        trans.rot = glm::quat{std::cosf(deg * 0.5f), dir * std::sinf(deg * 0.5f)};
+        // Copy the mesh component (use same VAO)
+        EM.emplace<component::mesh>(entity, EM.get<component::mesh>(sphereEnt));
+        EM.emplace<component::metadata>(entity, std::string{"plane "}.append(std::to_string(i)));
+        EM.emplace<component::phys>(entity, 10000.f, dir * 0.f);
+    }
 
 
     // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
