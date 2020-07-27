@@ -2,6 +2,7 @@
 #include <glm/gtc/type_ptr.hpp> // For glm::value_ptr()
 #include <glm/gtc/matrix_transform.hpp> // For glm::perspective
 #include <glm/gtc/quaternion.hpp>       // glm::quat
+#include <cstdlib>                      // For std::rand()
 
 App::App()
 {
@@ -32,6 +33,7 @@ int App::initGLFW()
     }
     glfwSetWindowUserPointer(wp, this);
     glfwSetFramebufferSizeCallback(wp, framebuffer_size_callback);
+    glfwSetScrollCallback(wp, scroll_callback);
     return 1;
 }
 
@@ -54,7 +56,7 @@ int App::initOpenGL()
 
     glEnable(GL_DEBUG_OUTPUT);
     // glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS); // If you want to ensure the error happens exactly after the error on the same thread.
-    glDebugMessageCallback(&errorCallback, nullptr);
+    glDebugMessageCallback(&errorCallback, this);
     return 1;
 }
 
@@ -66,7 +68,7 @@ void App::showFPS()
     if (elapsed >= 1000)
     {
         const auto fps = frameCount * 1000.f / elapsed;
-        std::string title{"CodeOpenGLTesting, fps: " + std::to_string(fps)};
+        std::string title{"CodeOpenGLTesting, fps: " + std::to_string(fps) + ", time dilation: " + std::to_string(timeDilation)};
         glfwSetWindowTitle(wp, title.c_str());
         frameCount = 0;
         timer.reset();
@@ -116,6 +118,11 @@ void App::processInput(float deltaTime)
         pTrans.rot = glm::quat{std::cosf(pCamera.pitch * 0.5f), std::sinf(pCamera.pitch * 0.5f), 0.f, 0.f} *
                      glm::quat{std::cosf(pCamera.yaw * 0.5f), 0.f, std::sinf(pCamera.yaw * 0.5f), 0.f};
         pCamera.view = component::trans::createViewMat(pTrans);
+    } else {
+        if (mouseWheelDist < -0.1f || 0.1f < mouseWheelDist) {
+            timeDilation += mouseWheelDist * 0.1f;
+            mouseWheelDist = 0.f;
+        }
     }
 }
 
@@ -131,6 +138,11 @@ void App::gameloop()
     // -----
     processInput(deltaTime);
 
+    // Physics
+    // Timer t{};
+    calcPhysics(deltaTime * timeDilation);
+    // std::cout << "Physics took " << t.elapsed<std::chrono::microseconds>() * 0.001f << "ms." << std::endl;
+
     // render
     // ------
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
@@ -141,7 +153,7 @@ void App::gameloop()
 
     const auto& [camera, playerTrans] = EM.get<component::camera, component::trans>(playerEntity);
 
-    auto view = EM.view<component::mesh, component::mat>();
+    auto view = EM.view<component::mesh, component::mat, component::metadata>();
     for (const auto &entity : view)
     {
         glm::mat4 modelMat{1.f};
@@ -154,16 +166,23 @@ void App::gameloop()
             glUseProgram(material.shader);
             glUniformMatrix4fv(glGetUniformLocation(material.shader, "uProj"), 1, GL_FALSE, glm::value_ptr(camera.proj));
             glUniformMatrix4fv(glGetUniformLocation(material.shader, "uView"), 1, GL_FALSE, glm::value_ptr(camera.view));
+
+            glm::vec3 lightPos{0.f, 0.f, 0.f};
+            glUniform3fv(glGetUniformLocation(material.shader, "lightPos"), 1, glm::value_ptr(lightPos));
+            glUniform3fv(glGetUniformLocation(material.shader, "cameraPos"), 1, glm::value_ptr(playerTrans.pos));
         }
 
         // Assign a model matrix if it exist
-        if (EM.has<component::trans>(entity)) {
+        if (EM.has<component::trans>(entity))
+        {
             auto& transform = EM.get<component::trans>(entity);
-            transform.rot *= glm::quat{std::cosf(deltaTime * 0.5f), glm::vec3{0.f, std::sinf(deltaTime * 0.5f), 0.f}};
+            // if (view.get<component::metadata>(entity).name != "plane")
+            //     transform.rot *= glm::quat{std::cosf(deltaTime * 0.5f), transform.right() * std::sinf(deltaTime * 0.5f)};
             // transform.pos.x += deltaTime * 0.1f;
             modelMat = transform.mat();
         }
         glUniformMatrix4fv(glGetUniformLocation(material.shader, "uModel"), 1, GL_FALSE, glm::value_ptr(modelMat));
+        glUniform3fv(glGetUniformLocation(material.shader, "color"), 1, glm::value_ptr(material.color));
 
         glBindVertexArray(mesh.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
         if (mesh.bIndices)
@@ -177,6 +196,32 @@ void App::gameloop()
     // -------------------------------------------------------------------------------
     glfwSwapBuffers(wp);
     glfwPollEvents();
+}
+
+void App::calcPhysics(float deltaTime)
+{
+    auto view = EM.view<component::trans, component::phys>();
+
+    unsigned int i{0};
+    for (auto it{view.begin()}; it != view.end(); ++it, ++i) {
+        auto &[t, p] = view.get<component::trans, component::phys>(*it);
+
+        glm::vec3 a{0.f, 0.f, 0.f};
+
+        for (auto other{view.begin()}; other != view.end(); ++other) {
+            if (it == other)
+                continue;
+            
+            auto& [t2, p2] = view.get<component::trans, component::phys>(*other);
+            auto dist = t2.pos - t.pos;
+
+            a += glm::normalize(dist) * calcGravity(p.mass, p2.mass, dist.length());
+        }
+
+        // std::cout << "a: " << glm::length(a) << ", deltaTime: " << deltaTime << ", a * deltaTime: " << glm::length(a *deltaTime) << std::endl;
+        p.vel += a * deltaTime;
+        t.pos += p.vel * deltaTime;
+    }
 }
 
 int App::init(int currentReward)
@@ -228,11 +273,15 @@ void App::setupScene()
 {
     Shader defaultShader{"src/shaders/default.vert", "src/shaders/default.frag"};
     Shader colorShader{"src/shaders/default.vert", "src/shaders/color.frag"};
+    Shader phongShader{"src/shaders/phong.vert", "src/shaders/phong.frag"};
 
     glEnable(GL_CULL_FACE);
     // glFrontFace()
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
+
+    // uncomment this call to draw in wireframe polygons.
+    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
     // Setup player
     auto entity = EM.create();
@@ -287,11 +336,11 @@ void App::setupScene()
 
 
 
-    // ----------- Plane: ------------------------------
+    // ----------- Cube: ------------------------------
     auto cubeEnt = entity = EM.create();
-    EM.emplace<component::mat>(entity, defaultShader.get());
+    // EM.emplace<component::mat>(entity, colorShader.get());
     mesh = &EM.emplace<component::mesh>(entity);
-    EM.emplace<component::trans>(entity);
+    // EM.emplace<component::trans>(entity);
     EM.emplace<component::metadata>(entity, "cube");
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
@@ -370,7 +419,6 @@ void App::setupScene()
     // std::tuple_size to get length of array. Surprisingly that it doesn't already exist in std::array
     // https://stackoverflow.com/questions/21936507/why-isnt-stdarraysize-static
     mesh->indexCount = static_cast<unsigned int>(indices.size() * std::tuple_size<tri>::value);
-    std::cout << "Index count: " << mesh->indexCount << ", also size of triangle is: " << sizeof(tri) << std::endl;
 
     // // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
     // glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -384,25 +432,69 @@ void App::setupScene()
 
     
 
-
-    for (unsigned int i{0}, max{100}; i < max; ++i) {
+    auto getRandDeg = [](){
+        return (std::rand() % 100) * 0.01f * 6.28f;
+    };
+    auto getRandPointInUnitSphere = [=](){
+        auto x{std::rand() % 100 * 0.01f * 6.28f}, y{std::acosf(std::rand() % 100 * 0.02f - 1)};
+        // std::cout << "x, y: " << x << ", " << y << std::endl;
+        return glm::vec3{std::sinf(y) * std::cosf(x), std::sinf(y) * std::sinf(x), std::cosf(y)};
+    };
+    auto getRandColor = []() {
+        return glm::vec3{rand() % 100 * 0.01f, rand() % 100 * 0.01f, rand() % 100 * 0.01f};
+    };
+    for (unsigned int i{0}, max{30}; i < max; ++i) {
         entity = EM.create();
-        EM.emplace<component::mat>(entity, colorShader.get());
+        EM.emplace<component::mat>(entity, phongShader.get(), getRandColor());
         auto& trans = EM.emplace<component::trans>(entity);
-        float deg = i * 6.28f / max;
-        trans.pos = glm::vec3{std::cosf(deg) * 5.f, 0.f, std::sinf(deg) * 5.f};
-        trans.rot = glm::quat{std::cosf(deg * 0.5f), 0.f, std::sinf(deg * 0.5f), 0.f};
+        auto deg = getRandDeg();
+        auto dir = getRandPointInUnitSphere();
+        // std::cout << "Rand deg : " << deg << ", rand dir: " << dir.x << ", " << dir.y << ", " << dir.z << std::endl;
+        trans.pos = dir * (std::rand() % 100 * 0.1f + 10.f);
+        trans.rot = glm::quat{std::cosf(deg * 0.5f), dir * std::sinf(deg * 0.5f)};
         // Copy the mesh component (use same VAO)
         EM.emplace<component::mesh>(entity, EM.get<component::mesh>(cubeEnt));
         EM.emplace<component::metadata>(entity, std::string{"plane "}.append(std::to_string(i)));
+        EM.emplace<component::phys>(entity, 10000.f, dir * 0.f);
     }
+
+
+
+
+
+    entity = EM.create();
+    EM.emplace<component::mat>(entity, phongShader.get(), glm::vec3{0.7f, 0.2f, 0.2f});
+    EM.emplace<component::trans>(entity) = {.pos{0.f, -1.f, 0.f}, .scale{2.f}};
+    EM.emplace<component::metadata>(entity, "plane");
+    mesh = &EM.emplace<component::mesh>(entity);
+    glCreateVertexArrays(1, &mesh->VAO);
+    glBindVertexArray(mesh->VAO);
+    
+    glCreateBuffers(1, &mesh->VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->VBO);
+    vertices = {
+        {.pos{0.5f, 0.f, -0.5f}, .normal{0.f, 1.f, 0.f}},
+        {.pos{-0.5f, 0.f, -0.5f}, .normal{0.f, 1.f, 0.f}},
+        {.pos{-0.5f, 0.f, 0.5f}, .normal{0.f, 1.f, 0.f}},
+
+        {.pos{-0.5f, 0.f, 0.5f}, .normal{0.f, 1.f, 0.f}},
+        {.pos{0.5f, 0.f, 0.5f}, .normal{0.f, 1.f, 0.f}},
+        {.pos{0.5f, 0.f, -0.5f}, .normal{0.f, 1.f, 0.f}}
+    };
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vertex), vertices.data(), GL_STATIC_DRAW);
+    mesh->vertexCount = vertices.size();
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(3 * sizeof(float)));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(6 * sizeof(float)));
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+
 
     // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
     // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
     glBindVertexArray(0);
-
-    // uncomment this call to draw in wireframe polygons.
-    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 }
 
 void App::cleanupScene()
@@ -426,7 +518,7 @@ void App::framebuffer_size_callback(GLFWwindow *wp, int width, int height)
     // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
 
-    auto app = AppSingleton::get().find(wp);
+    auto app = static_cast<App *>(glfwGetWindowUserPointer(wp));
     assert(app != nullptr);
     auto &camera = app->EM.get<component::camera>(app->playerEntity);
     /**
@@ -435,4 +527,38 @@ void App::framebuffer_size_callback(GLFWwindow *wp, int width, int height)
          * (z is flipped from world space to window space)
          */
     camera.proj = glm::perspective(glm::radians(camera.FOV), static_cast<float>(width) / height, 0.1f, 100.f);
+}
+
+void App::errorCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
+{
+    std::string sourceStr{enumToString(source,
+                                        ESPair{GL_DEBUG_SOURCE_API, "GL_DEBUG_SOURCE_API"},
+                                        ESPair{GL_DEBUG_SOURCE_WINDOW_SYSTEM, "GL_DEBUG_SOURCE_WINDOW_SYSTEM"},
+                                        ESPair{GL_DEBUG_SOURCE_SHADER_COMPILER, "GL_DEBUG_SOURCE_SHADER_COMPILER"},
+                                        ESPair{GL_DEBUG_SOURCE_THIRD_PARTY, "GL_DEBUG_SOURCE_THIRD_PARTY"},
+                                        ESPair{GL_DEBUG_SOURCE_APPLICATION, "GL_DEBUG_SOURCE_APPLICATION"},
+                                        ESPair{GL_DEBUG_SOURCE_OTHER, "GL_DEBUG_SOURCE_OTHER"})};
+    std::string typeStr{enumToString(type,
+                                        ESPair{GL_DEBUG_TYPE_ERROR, "GL_DEBUG_TYPE_ERROR"},
+                                        ESPair{GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR, "GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR"},
+                                        ESPair{GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR, "GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR"},
+                                        ESPair{GL_DEBUG_TYPE_PORTABILITY, "GL_DEBUG_TYPE_PORTABILITY"},
+                                        ESPair{GL_DEBUG_TYPE_PERFORMANCE, "GL_DEBUG_TYPE_PERFORMANCE"},
+                                        ESPair{GL_DEBUG_TYPE_MARKER, "GL_DEBUG_TYPE_MARKER"},
+                                        ESPair{GL_DEBUG_TYPE_PUSH_GROUP, "GL_DEBUG_TYPE_PUSH_GROUP"},
+                                        ESPair{GL_DEBUG_TYPE_POP_GROUP, "GL_DEBUG_TYPE_POP_GROUP"},
+                                        ESPair{GL_DEBUG_TYPE_OTHER, "GL_DEBUG_TYPE_OTHER"})};
+    std::string severityStr{enumToString(severity,
+                                            ESPair{GL_DEBUG_SEVERITY_HIGH, "GL_DEBUG_SEVERITY_HIGH"},
+                                            ESPair{GL_DEBUG_SEVERITY_MEDIUM, "GL_DEBUG_SEVERITY_MEDIUM"},
+                                            ESPair{GL_DEBUG_SEVERITY_LOW, "GL_DEBUG_SEVERITY_LOW"},
+                                            ESPair{GL_DEBUG_SEVERITY_NOTIFICATION, "GL_DEBUG_SEVERITY_NOTIFICATION"})};
+
+    // Close if severe error.
+    if (severity == GL_DEBUG_SEVERITY_HIGH || severity == GL_DEBUG_SEVERITY_MEDIUM) {
+        auto app = (App*)userParam;
+        glfwSetWindowShouldClose(app->wp, true);
+    }
+
+    std::cout << "GL_ERROR: (source: " << sourceStr << ", type: " << typeStr << ", severity: " << severityStr << ", message: " << message << std::endl;
 }

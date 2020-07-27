@@ -19,7 +19,7 @@ struct trans
     glm::vec3 scale{1.f, 1.f, 1.f};
 
     glm::mat4 mat() const {
-        return glm::translate(glm::scale(glm::mat4{1.f}, scale), pos) * static_cast<glm::mat4>(rot);
+        return glm::scale(glm::translate(glm::mat4{1.f}, pos), scale) * static_cast<glm::mat4>(rot);
     }
 
     static glm::mat4 createViewMat(const component::trans& comp) {
@@ -105,10 +105,18 @@ struct mesh
 struct mat
 {
     int shader;
+    glm::vec3 color{1.f, 1.f, 1.f};
 };
 
 struct metadata
 {
     std::string name;
+};
+
+struct phys
+{
+    // Mass in kilograms
+    float mass{1000.f};
+    glm::vec3 vel{0.f, 0.f, 0.f};
 };
 }

@@ -28,6 +28,9 @@ private:
     entt::registry EM{};
     entt::entity playerEntity{};
     double mouseXPos{}, mouseYPos{};
+    float mouseWheelDist{0.f};
+    // Timestep multiplum. A multiplier added to the deltaTime each frame.
+    float timeDilation{1.f};
 
 
 
@@ -37,6 +40,7 @@ private:
     // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
     void processInput(float deltaTime = 1.f);
     void gameloop();
+    void calcPhysics(float deltaTime);
 
 public:
     App();
@@ -52,33 +56,13 @@ public:
 
     // glfw: whenever the wp size changed (by OS or user resize) this callback function executes
     static void framebuffer_size_callback(GLFWwindow *wp, int width, int height);
-
-    static void errorCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
-    {
-        std::string sourceStr{enumToString(source,
-                                           ESPair{GL_DEBUG_SOURCE_API, "GL_DEBUG_SOURCE_API"},
-                                           ESPair{GL_DEBUG_SOURCE_WINDOW_SYSTEM, "GL_DEBUG_SOURCE_WINDOW_SYSTEM"},
-                                           ESPair{GL_DEBUG_SOURCE_SHADER_COMPILER, "GL_DEBUG_SOURCE_SHADER_COMPILER"},
-                                           ESPair{GL_DEBUG_SOURCE_THIRD_PARTY, "GL_DEBUG_SOURCE_THIRD_PARTY"},
-                                           ESPair{GL_DEBUG_SOURCE_APPLICATION, "GL_DEBUG_SOURCE_APPLICATION"},
-                                           ESPair{GL_DEBUG_SOURCE_OTHER, "GL_DEBUG_SOURCE_OTHER"})};
-        std::string typeStr{enumToString(type,
-                                         ESPair{GL_DEBUG_TYPE_ERROR, "GL_DEBUG_TYPE_ERROR"},
-                                         ESPair{GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR, "GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR"},
-                                         ESPair{GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR, "GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR"},
-                                         ESPair{GL_DEBUG_TYPE_PORTABILITY, "GL_DEBUG_TYPE_PORTABILITY"},
-                                         ESPair{GL_DEBUG_TYPE_PERFORMANCE, "GL_DEBUG_TYPE_PERFORMANCE"},
-                                         ESPair{GL_DEBUG_TYPE_MARKER, "GL_DEBUG_TYPE_MARKER"},
-                                         ESPair{GL_DEBUG_TYPE_PUSH_GROUP, "GL_DEBUG_TYPE_PUSH_GROUP"},
-                                         ESPair{GL_DEBUG_TYPE_POP_GROUP, "GL_DEBUG_TYPE_POP_GROUP"},
-                                         ESPair{GL_DEBUG_TYPE_OTHER, "GL_DEBUG_TYPE_OTHER"})};
-        std::string severityStr{enumToString(severity,
-                                             ESPair{GL_DEBUG_SEVERITY_HIGH, "GL_DEBUG_SEVERITY_HIGH"},
-                                             ESPair{GL_DEBUG_SEVERITY_MEDIUM, "GL_DEBUG_SEVERITY_MEDIUM"},
-                                             ESPair{GL_DEBUG_SEVERITY_LOW, "GL_DEBUG_SEVERITY_LOW"},
-                                             ESPair{GL_DEBUG_SEVERITY_NOTIFICATION, "GL_DEBUG_SEVERITY_NOTIFICATION"})};
-
-        std::cout << "GL_ERROR: (source: " << sourceStr << ", type: " << typeStr << ", severity: " << severityStr << ", message: " << message << std::endl;
+    static void errorCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam);
+    inline static float calcGravity(float m1, float m2, float distance) {
+        static constexpr double G = 6.6743e-11;
+        return G * m1 * m2 / std::pow(distance, 2.f);
+    }
+    static void scroll_callback(GLFWwindow *wp, double xoffset, double yoffset) {
+        static_cast<App*>(glfwGetWindowUserPointer(wp))->mouseWheelDist += yoffset;
     }
 
 
