@@ -80,7 +80,18 @@
 			"xstddef": "cpp",
 			"xstring": "cpp",
 			"xtr1common": "cpp",
-			"xutility": "cpp"
+			"xutility": "cpp",
+			"codecvt": "cpp",
+			"forward_list": "cpp",
+			"map": "cpp",
+			"set": "cpp",
+			"filesystem": "cpp",
+			"mutex": "cpp",
+			"numeric": "cpp",
+			"regex": "cpp",
+			"thread": "cpp",
+			"valarray": "cpp",
+			"xtree": "cpp"
 		}
 	}
 }

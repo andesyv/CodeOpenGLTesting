@@ -5,6 +5,8 @@
 #include <cstdlib>                      // For std::rand()
 #include "shapes.h"
 
+#include "modelloader.h"
+
 App::App()
 {
     AppSingleton::get().Instances.push_back(this);
@@ -338,6 +340,17 @@ void App::setupScene()
     EM.emplace<component::metadata>(entity, "cube");
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
+
+
+    auto obj = ModelLoader::load("src/models/samples/Cube.gltf");
+    std::cout << "Vertex count: " << obj.first.size() << ", index count: " << obj.second.size() << std::endl;
+    if (!ModelLoader::save(obj, "src/models/CopyCube.gltf")) {
+        std::cout << "Saving failed" << std::endl;
+    }
+
+    obj = ModelLoader::load("src/models/CopyCube.gltf");
+    std::cout << "Vertex count: " << obj.first.size() << ", index count: " << obj.second.size() << std::endl;
+
 
     glGenVertexArrays(1, &mesh->VAO);
     glGenBuffers(1, &mesh->VBO);

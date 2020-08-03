@@ -6,12 +6,16 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glad/glad.h>
 #include <type_traits>
+#include <tuple>
 
 struct vertex
 {
     glm::vec3 pos{};
     glm::vec3 normal{};
     glm::vec2 uv{};
+
+    // Cast operators
+    operator std::tuple<glm::vec3, glm::vec3, glm::vec2>() const { return {pos, normal, uv}; }
 };
 
 namespace component {

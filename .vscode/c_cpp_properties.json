@@ -17,7 +17,8 @@
                 "${env:GLFW_HOME}/include",
                 "${env:GLAD_HOME}/include",
                 "${env:ENTT_HOME}/single_include",
-                "${env:GLM_HOME}"
+                "${env:GLM_HOME}",
+                "${env:JSON_HOME}/single_include/nlohmann"
             ]
         }
     ],

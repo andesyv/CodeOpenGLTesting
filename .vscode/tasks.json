@@ -19,7 +19,9 @@
                 "/I",
                 "${env:ENTT_HOME}/single_include",
                 "/I",
-                "${env:GLM_HOME}"
+                "${env:GLM_HOME}",
+                "/I",
+                "${env:JSON_HOME}/single_include/nlohmann",
                 "${env:GLAD_HOME}/src/glad.c",
                 "${workspaceRoot}/src/*.cpp"
             ],
