@@ -244,29 +244,42 @@ void App::gameloop()
     glfwPollEvents();
 }
 
+/**
+ * Note: For ekstra precision during physics calculations
+ * we promote variables to doubles.
+ */
 void App::calcPhysics(float deltaTime)
 {
+    if (deltaTime <= MIN_TICK_TIME)
+        return;
+
+    const auto time = static_cast<double>(deltaTime);
+
     auto view = EM.view<component::trans, component::phys>();
 
     unsigned int i{0};
     for (auto it{view.begin()}; it != view.end(); ++it, ++i) {
         auto &[t, p] = view.get<component::trans, component::phys>(*it);
 
-        glm::vec3 a{0.f, 0.f, 0.f};
+        glm::dvec3 f{0.f, 0.f, 0.f};
 
         for (auto other{view.begin()}; other != view.end(); ++other) {
             if (it == other)
                 continue;
             
             auto& [t2, p2] = view.get<component::trans, component::phys>(*other);
-            auto dist = t2.pos - t.pos;
+            glm::dvec3 dist = t2.pos - t.pos;
 
-            a += glm::normalize(dist) * calcGravity(p.mass, p2.mass, dist.length());
+            f += glm::normalize(dist) * calcGravity(p.mass, p2.mass, dist.length());
         }
 
         // std::cout << "a: " << glm::length(a) << ", deltaTime: " << deltaTime << ", a * deltaTime: " << glm::length(a *deltaTime) << std::endl;
-        p.vel += a * deltaTime;
-        t.pos += p.vel * deltaTime;
+        const auto a = f / static_cast<double>(p.mass);
+        if (glm::any(glm::isnan(a)))
+            continue;
+        p.vel += a * time;
+        // Demote double to float for final calculation. (No need to keep variable if it cannot be stored)
+        t.pos += static_cast<glm::vec3>(p.vel * time);
     }
 }
 
@@ -519,13 +532,14 @@ void App::setupScene()
         auto dir = getRandPointInUnitSphere();
         // std::cout << "Rand deg : " << deg << ", rand dir: " << dir.x << ", " << dir.y << ", " << dir.z << std::endl;
         trans.flags |= trans.SPHERE;
-        trans.pos = dir * (std::rand() % 1000 * 0.1f + 10.f);
+        trans.pos = dir * (std::rand() % 100 * 0.1f + 100.f);
+        // std::cout << "Startpos: " << trans.pos.x << ", " << trans.pos.y << ", " << trans.pos.z << std::endl;
         trans.rot = glm::quat{std::cosf(deg * 0.5f), dir * std::sinf(deg * 0.5f)};
         trans.scale = glm::vec3{std::rand() % 40 * 0.1f};
         // Copy the mesh component (use same VAO)
         EM.emplace<component::mesh>(entity, EM.get<component::mesh>(sphereEnt));
         EM.emplace<component::metadata>(entity, std::string{"plane "}.append(std::to_string(i)));
-        EM.emplace<component::phys>(entity, getMassFromSize(trans), dir * 0.f);
+        EM.emplace<component::phys>(entity, getMassFromSize(trans), getRandPointInUnitSphere() * (std::rand() % 100 * 0.01f));
     }
 
 

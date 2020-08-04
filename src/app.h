@@ -6,6 +6,7 @@
 #include <entt/entt.hpp> // https://github.com/skypjack/entt
 #include <glm/glm.hpp>   // https://github.com/g-truc/glm
 #include <tuple>
+#include <limits>
 
 #include "shader.h"
 #include "timer.h"
@@ -15,6 +16,7 @@
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 const float CAMERA_ROTATION_SPEED = 0.1f;
+constexpr float MIN_TICK_TIME = std::numeric_limits<float>::epsilon();
 
 class App
 {
@@ -58,9 +60,9 @@ public:
     // glfw: whenever the wp size changed (by OS or user resize) this callback function executes
     static void framebuffer_size_callback(GLFWwindow *wp, int width, int height);
     static void errorCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam);
-    inline static float calcGravity(float m1, float m2, float distance) {
+    inline static double calcGravity(float m1, float m2, float distance) {
         static constexpr double G = 6.6743e-11;
-        return G * m1 * m2 / std::pow(distance, 2.f);
+        return G * m1 * m2 / std::pow(distance, 2.0);
     }
     static void scroll_callback(GLFWwindow *wp, double xoffset, double yoffset) {
         static_cast<App*>(glfwGetWindowUserPointer(wp))->mouseWheelDist += yoffset;

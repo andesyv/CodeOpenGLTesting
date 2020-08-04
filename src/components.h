@@ -18,6 +18,10 @@ struct vertex
     operator std::tuple<glm::vec3, glm::vec3, glm::vec2>() const { return {pos, normal, uv}; }
 };
 
+static auto quatToVec(const glm::quat &q) {
+    return glm::vec3{q.x, q.y, q.z};
+};
+
 namespace component {
 struct trans
 {
@@ -59,9 +63,6 @@ struct trans
      */
 
     static component::trans objectCentricToNormal(const component::trans& comp) {
-        static constexpr auto quatToVec = [](const glm::quat& q) {
-            return glm::vec3{q.x, q.y, q.z};
-        };
         return component::trans{
             .pos{quatToVec(glm::conjugate(comp.rot) * glm::quat{0.f, comp.pos} * comp.rot)},
             .rot{glm::quat(-comp.pos) * comp.rot * glm::inverse(glm::quat(-comp.pos))},
@@ -69,10 +70,11 @@ struct trans
             .flags{comp.flags}};
     }
 
+    static auto objectCentricPos(const component::trans& comp) {
+        return quatToVec(glm::conjugate(comp.rot) * glm::quat{0.f, comp.pos} * comp.rot);
+    }
+
     static component::trans normalToObjectCentric(const component::trans& comp) {
-        static constexpr auto quatToVec = [](const glm::quat& q) {
-            return glm::vec3{q.x, q.y, q.z};
-        };
         return component::trans{
             .pos{0.f, 0.f, glm::length(comp.pos)},
             .rot{glm::inverse(glm::quat(-comp.pos)) * comp.rot * glm::quat(-comp.pos)},
@@ -172,7 +174,7 @@ struct phys
 {
     // Mass in kilograms
     float mass{1000.f};
-    glm::vec3 vel{0.f, 0.f, 0.f};
+    glm::dvec3 vel{0.f, 0.f, 0.f};
 };
 }
 
