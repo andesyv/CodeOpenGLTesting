@@ -14,7 +14,7 @@
 // settings
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
-const float CAMERA_SPEED = 0.1f;
+const float CAMERA_ROTATION_SPEED = 0.1f;
 
 class App
 {
@@ -23,6 +23,7 @@ private:
     Timer appTimer{};
     Timer frameTimer{};
     GLFWwindow *wp{nullptr};
+    float cameraSpeed{1.f};
 
     // Entity Manager
     entt::registry EM{};

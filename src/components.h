@@ -36,8 +36,49 @@ struct trans
         return glm::scale(glm::translate(glm::mat4{1.f}, pos), scale) * static_cast<glm::mat4>(rot);
     }
 
-    static glm::mat4 createViewMat(const component::trans& comp) {
-        return static_cast<glm::mat4>(comp.rot) * glm::translate(glm::mat4{1.f}, -comp.pos);
+    static glm::mat4 createViewMat(const component::trans& comp, bool objectCentric = false) {
+        if (objectCentric)
+            return glm::translate(glm::mat4{1.f}, -comp.pos) * static_cast<glm::mat4>(comp.rot);
+        else
+            return static_cast<glm::mat4>(comp.rot) * glm::translate(glm::mat4{1.f}, -comp.pos);
+    }
+
+    /**
+     * Some random calculations:
+     * T_1 = T_2
+     * W_1 = T_1 * R_1          <- Object centric
+     * W_2 = R_2 * T_2          <- Normal
+     * 
+     * W_2 = W_1
+     * R_2 * T_2 = T_1 * R_1
+     * R_2 * T_2 * T_2^-1 = T_1 * R_1 * T_2^-1
+     * R_2 = T_1 * R_1 * T_1^-1
+     * 
+     * R_2 * T_1 * T_1^-1 = T_1 * R_1 * T_1^-1
+     * R_2 * I = R_1
+     */
+
+    static component::trans objectCentricToNormal(const component::trans& comp) {
+        static constexpr auto quatToVec = [](const glm::quat& q) {
+            return glm::vec3{q.x, q.y, q.z};
+        };
+        return component::trans{
+            .pos{quatToVec(glm::conjugate(comp.rot) * glm::quat{0.f, comp.pos} * comp.rot)},
+            .rot{glm::quat(-comp.pos) * comp.rot * glm::inverse(glm::quat(-comp.pos))},
+            .scale{comp.scale},
+            .flags{comp.flags}};
+    }
+
+    static component::trans normalToObjectCentric(const component::trans& comp) {
+        static constexpr auto quatToVec = [](const glm::quat& q) {
+            return glm::vec3{q.x, q.y, q.z};
+        };
+        return component::trans{
+            .pos{0.f, 0.f, glm::length(comp.pos)},
+            .rot{glm::inverse(glm::quat(-comp.pos)) * comp.rot * glm::quat(-comp.pos)},
+            .scale{comp.scale},
+            .flags{comp.flags}
+        };
     }
 
     static glm::vec3 rightVector(const glm::quat& rot)

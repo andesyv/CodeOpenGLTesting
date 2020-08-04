@@ -71,7 +71,7 @@ void App::showFPS()
     if (elapsed >= 1000)
     {
         const auto fps = frameCount * 1000.f / elapsed;
-        std::string title{"CodeOpenGLTesting, fps: " + std::to_string(fps) + ", time dilation: " + std::to_string(timeDilation)};
+        std::string title{"CodeOpenGLTesting, fps: " + std::to_string(fps) + ", time dilation: " + std::to_string(timeDilation) + ", camera speed: " + std::to_string(cameraSpeed)};
         glfwSetWindowTitle(wp, title.c_str());
         frameCount = 0;
         timer.reset();
@@ -88,45 +88,88 @@ void App::processInput(float deltaTime)
     double xPos, yPos;
     glfwGetCursorPos(wp, &xPos, &yPos);
     double deltaX{xPos - mouseXPos}, deltaY{yPos - mouseYPos};
-    deltaX *= deltaTime * CAMERA_SPEED;
-    deltaY *= deltaTime * CAMERA_SPEED;
+    deltaX *= deltaTime * CAMERA_ROTATION_SPEED;
+    deltaY *= deltaTime * CAMERA_ROTATION_SPEED;
     mouseXPos = xPos;
     mouseYPos = yPos;
-
-
+    
     auto& [pTrans, pCamera] = EM.get<component::trans, component::camera>(playerEntity);
-    if (glfwGetMouseButton(wp, 1) == GLFW_PRESS)
+
+    bool bAlt{glfwGetKey(wp, GLFW_KEY_LEFT_ALT) == GLFW_PRESS}, bRMB{glfwGetMouseButton(wp, 1) == GLFW_PRESS};
+    if (bAlt || bRMB)
     {
-        if (glfwGetKey(wp, GLFW_KEY_SPACE) == GLFW_PRESS || glfwGetKey(wp, GLFW_KEY_E) == GLFW_PRESS)
-            pTrans.pos += pTrans.upVector(glm::conjugate(pTrans.rot)) * deltaTime;
+        if (mouseWheelDist < -0.1f || 0.1f < mouseWheelDist)
+            cameraSpeed += mouseWheelDist * 0.1f;
+        if (glfwGetKey(wp, GLFW_KEY_UP) == GLFW_PRESS)
+            cameraSpeed += 0.1f;        
+        if (glfwGetKey(wp, GLFW_KEY_DOWN) == GLFW_PRESS)
+            cameraSpeed -= 0.1f;
 
-        if (glfwGetKey(wp, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(wp, GLFW_KEY_Q) == GLFW_PRESS)
-            pTrans.pos -= pTrans.upVector(glm::conjugate(pTrans.rot)) * deltaTime;
+        cameraSpeed = std::max(cameraSpeed, 0.1f);
 
-        if (glfwGetKey(wp, GLFW_KEY_D) == GLFW_PRESS)
-            pTrans.pos += pTrans.rightVector(glm::conjugate(pTrans.rot)) * deltaTime;
 
-        if (glfwGetKey(wp, GLFW_KEY_A) == GLFW_PRESS)
-            pTrans.pos -= pTrans.rightVector(glm::conjugate(pTrans.rot)) * deltaTime;
 
-        // W and S are inverted because z in the coordinate system is inverted
-        if (glfwGetKey(wp, GLFW_KEY_W) == GLFW_PRESS)
-            pTrans.pos -= pTrans.forwardVector(glm::conjugate(pTrans.rot)) * deltaTime;
+        const bool bObjectCentric = bAlt;
+        const bool bChangedFromObjectCentric = !bObjectCentric && (pTrans.flags & pTrans.OBJECTCENTRIC);
+        const bool bChangedToObjectCentric = bObjectCentric && !(pTrans.flags & pTrans.OBJECTCENTRIC);
+        pTrans.flags = bObjectCentric ? pTrans.flags | pTrans.OBJECTCENTRIC : (pTrans.flags | pTrans.OBJECTCENTRIC) ^ pTrans.OBJECTCENTRIC;
 
-        if (glfwGetKey(wp, GLFW_KEY_S) == GLFW_PRESS)
-            pTrans.pos += pTrans.forwardVector(glm::conjugate(pTrans.rot)) * deltaTime;
-        
+
+        if (bChangedFromObjectCentric) {
+            pTrans = component::trans::objectCentricToNormal(pTrans);
+        } else if (bChangedToObjectCentric) {
+            pTrans = component::trans::normalToObjectCentric(pTrans);
+        }
+
+
+
+        if (bRMB) {
+            if (glfwGetKey(wp, GLFW_KEY_SPACE) == GLFW_PRESS || glfwGetKey(wp, GLFW_KEY_E) == GLFW_PRESS)
+                pTrans.pos += pTrans.upVector(glm::conjugate(pTrans.rot)) * cameraSpeed * deltaTime;
+
+            if (glfwGetKey(wp, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(wp, GLFW_KEY_Q) == GLFW_PRESS)
+                pTrans.pos -= pTrans.upVector(glm::conjugate(pTrans.rot)) * cameraSpeed * deltaTime;
+
+            if (glfwGetKey(wp, GLFW_KEY_D) == GLFW_PRESS)
+                pTrans.pos += pTrans.rightVector(glm::conjugate(pTrans.rot)) * cameraSpeed * deltaTime;
+
+            if (glfwGetKey(wp, GLFW_KEY_A) == GLFW_PRESS)
+                pTrans.pos -= pTrans.rightVector(glm::conjugate(pTrans.rot)) * cameraSpeed * deltaTime;
+
+            // W and S are inverted because z in the coordinate system is inverted
+            if (glfwGetKey(wp, GLFW_KEY_W) == GLFW_PRESS)
+                pTrans.pos -= pTrans.forwardVector(glm::conjugate(pTrans.rot)) * cameraSpeed * deltaTime;
+
+            if (glfwGetKey(wp, GLFW_KEY_S) == GLFW_PRESS)
+                pTrans.pos += pTrans.forwardVector(glm::conjugate(pTrans.rot)) * cameraSpeed * deltaTime;
+        } else {
+            // W and S are inverted because z in the coordinate system is inverted
+            if (glfwGetKey(wp, GLFW_KEY_W) == GLFW_PRESS)
+                pTrans.pos.z -= cameraSpeed * deltaTime;
+
+            if (glfwGetKey(wp, GLFW_KEY_S) == GLFW_PRESS)
+                pTrans.pos.z += cameraSpeed * deltaTime;
+        }
+
+
+
         pCamera.pitch += deltaY;
         pCamera.yaw += deltaX;
         pTrans.rot = glm::quat{std::cosf(pCamera.pitch * 0.5f), std::sinf(pCamera.pitch * 0.5f), 0.f, 0.f} *
                      glm::quat{std::cosf(pCamera.yaw * 0.5f), 0.f, std::sinf(pCamera.yaw * 0.5f), 0.f};
-        pCamera.view = component::trans::createViewMat(pTrans);
+
+        pCamera.view = component::trans::createViewMat(pTrans, bObjectCentric);
     } else {
         if (mouseWheelDist < -0.1f || 0.1f < mouseWheelDist) {
             timeDilation += mouseWheelDist * 0.1f;
-            mouseWheelDist = 0.f;
         }
+        if (glfwGetKey(wp, GLFW_KEY_UP) == GLFW_PRESS)
+            timeDilation += 0.1f;
+        if (glfwGetKey(wp, GLFW_KEY_DOWN) == GLFW_PRESS)
+            timeDilation -= 0.1f;
     }
+
+    mouseWheelDist = 0.f;
 }
 
 void App::gameloop()
@@ -288,7 +331,10 @@ void App::setupScene()
 
     // Setup player
     auto entity = EM.create();
-    EM.emplace<component::trans>(entity).pos.z = 5.f;
+    EM.emplace<component::trans>(entity, component::trans{.pos{0.f, 0.f, 40.f}, .rot{
+        glm::quat{std::cosf(0.f), std::sinf(0.f), 0.f, 0.f} *
+        glm::quat{std::cosf(0.f), 0.f, std::sinf(0.f), 0.f}
+    }});
     EM.emplace<component::metadata>(entity, "player");
     auto &camera = EM.emplace<component::camera>(entity);
     int width, height;
@@ -299,7 +345,7 @@ void App::setupScene()
      * (z is flipped from world space to window space)
      */
     camera.proj = glm::perspective(glm::radians(camera.FOV), static_cast<float>(width) / height, 0.1f, 100.f);
-    camera.view = glm::mat4{1.f};
+    camera.view = component::trans::createViewMat(EM.get<component::trans>(entity));
     playerEntity = entity;
 
 
