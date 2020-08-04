@@ -25,6 +25,13 @@ struct trans
     glm::quat rot{1.f, 0.f, 0.f, 0.f};
     glm::vec3 scale{1.f, 1.f, 1.f};
 
+    enum FLAG : unsigned char {
+        EULERROT =          1 << 0,
+        SPHERE =            1 << 1,
+        OBJECTCENTRIC =     1 << 2
+    };
+    unsigned char flags{};
+
     glm::mat4 mat() const {
         return glm::scale(glm::translate(glm::mat4{1.f}, pos), scale) * static_cast<glm::mat4>(rot);
     }

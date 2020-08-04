@@ -5,9 +5,17 @@
 #include <functional>
 #include <string_view>
 #include <algorithm>
+#include <glad/glad.h>
+#include <filesystem>
 
 class ModelLoader
 {
+private:
+    std::vector<std::pair<std::string, component::mesh>> mLoadedModels;
+    ModelLoader() = default;
+    ModelLoader(const ModelLoader&) = delete;
+    ModelLoader(ModelLoader&&) = delete;
+
 public:    
     typedef std::pair<std::vector<vertex>, std::vector<unsigned>> container;
 
@@ -52,6 +60,41 @@ private:
     template <> static std::size_t getCount<glm::vec3>() { return 3; };
     template <> static std::size_t getCount<glm::vec4>() { return 4; };
     
+    auto& initObj(const std::string& file) {
+        auto obj = load(file);
+        auto& mesh = mLoadedModels.emplace_back(file, component::mesh{}).second;
+        // Do OpenGL stuff
+
+        glGenVertexArrays(1, &mesh.VAO);
+        glGenBuffers(1, &mesh.VBO);
+        glGenBuffers(1, &mesh.IBO);
+        // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
+        glBindVertexArray(mesh.VAO);
+
+        glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
+        glBufferData(GL_ARRAY_BUFFER, obj.first.size() * sizeof(vertex), obj.first.data(), GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.IBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, obj.second.size() * sizeof(unsigned int), obj.second.data(), GL_STATIC_DRAW);
+        // GLint bufferSize;
+        // glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &bufferSize);
+        // std::cout << "buffer size: " << bufferSize << std::endl;
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)0);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(3 * sizeof(float)));
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(6 * sizeof(float)));
+        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+        glEnableVertexAttribArray(2);
+
+        mesh.vertexCount = static_cast<unsigned int>(obj.first.size());
+        mesh.bIndices = true;
+        // std::tuple_size to get length of array. Surprisingly that it doesn't already exist in std::array
+        // https://stackoverflow.com/questions/21936507/why-isnt-stdarraysize-static
+        mesh.indexCount = static_cast<unsigned int>(obj.second.size());
+
+        return mesh;
+    }
 
 public:
 
@@ -339,5 +382,51 @@ public:
 
         ofs << outObj.dump(4);
         return true;
+    }
+
+    // Singleton interface
+    static ModelLoader& get() {
+        static ModelLoader instance{};
+        return instance;
+    }
+
+    component::mesh mesh(const std::string& file) {
+        for (const auto& mesh : mLoadedModels)
+            return (mesh.first == file) ? mesh.second : initObj(file);
+    }
+
+    // Initializes all models in path
+    void initModels(std::filesystem::path path) {
+        for (const auto& p : path) {
+            if (p.extension().string() == ".gltf") {
+                bool bAlreadyLoaded{false};
+                for (const auto& m : mLoadedModels)
+                    if (std::filesystem::path{m.first} == p) {
+                        bAlreadyLoaded = true;
+                        break;
+                    }
+                
+                if (bAlreadyLoaded)
+                    continue;
+
+                initObj(p.string());
+            }
+        }
+    }
+
+    /**
+     * Don't really need to ever call this function as by this point all
+     * VAOs should already be deleted and the data stored here should be
+     * garbage values.
+     */
+    void deInitModels() {
+        for (auto& m : mLoadedModels) {
+            auto& mesh = m.second;
+            if (mesh.bIndices)
+                glDeleteBuffers(1, &mesh.IBO);
+
+            glDeleteBuffers(1, &mesh.VBO);
+            glDeleteVertexArrays(1, &mesh.VAO);
+        }
     }
 };

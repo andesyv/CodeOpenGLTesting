@@ -342,14 +342,14 @@ void App::setupScene()
     // ------------------------------------------------------------------
 
 
-    auto obj = ModelLoader::load("src/models/samples/Cube.gltf");
-    std::cout << "Vertex count: " << obj.first.size() << ", index count: " << obj.second.size() << std::endl;
-    if (!ModelLoader::save(obj, "src/models/CopyCube.gltf")) {
-        std::cout << "Saving failed" << std::endl;
-    }
+    // auto obj = ModelLoader::load("src/models/samples/Cube.gltf");
+    // std::cout << "Vertex count: " << obj.first.size() << ", index count: " << obj.second.size() << std::endl;
+    // if (!ModelLoader::save(obj, "src/models/CopyCube.gltf")) {
+    //     std::cout << "Saving failed" << std::endl;
+    // }
 
-    obj = ModelLoader::load("src/models/CopyCube.gltf");
-    std::cout << "Vertex count: " << obj.first.size() << ", index count: " << obj.second.size() << std::endl;
+    // obj = ModelLoader::load("src/models/CopyCube.gltf");
+    // std::cout << "Vertex count: " << obj.first.size() << ", index count: " << obj.second.size() << std::endl;
 
 
     glGenVertexArrays(1, &mesh->VAO);
@@ -428,7 +428,7 @@ void App::setupScene()
 
     glCreateBuffers(1, &mesh->VBO);
     glBindBuffer(GL_ARRAY_BUFFER, mesh->VBO);
-    auto ballVertices = shapes::cubeSphere(2);
+    auto ballVertices = shapes::cubeSphere(3);
     // Have to use ballvertice.size() * sizeof(vertex) because it's a std::vector
     glBufferData(GL_ARRAY_BUFFER, ballVertices.size() * sizeof(vertex), ballVertices.data(), GL_STATIC_DRAW);
     mesh->vertexCount = static_cast<unsigned int>(ballVertices.size());
@@ -459,6 +459,11 @@ void App::setupScene()
     auto getRandColor = []() {
         return glm::vec3{rand() % 100 * 0.01f, rand() % 100 * 0.01f, rand() % 100 * 0.01f};
     };
+    auto getMassFromSize = [](const component::trans& trans) {
+        float radius = (trans.flags & component::trans::SPHERE) ? trans.scale.x : glm::length(trans.scale);
+        float vol = 12.57f * std::powf(radius, 3.f) / 3.f;
+        return 10000.f * vol;
+    };
     for (unsigned int i{0}, max{30}; i < max; ++i)
     {
         entity = EM.create();
@@ -467,12 +472,14 @@ void App::setupScene()
         auto deg = getRandDeg();
         auto dir = getRandPointInUnitSphere();
         // std::cout << "Rand deg : " << deg << ", rand dir: " << dir.x << ", " << dir.y << ", " << dir.z << std::endl;
-        trans.pos = dir * (std::rand() % 100 * 0.1f + 10.f);
+        trans.flags |= trans.SPHERE;
+        trans.pos = dir * (std::rand() % 1000 * 0.1f + 10.f);
         trans.rot = glm::quat{std::cosf(deg * 0.5f), dir * std::sinf(deg * 0.5f)};
+        trans.scale = glm::vec3{std::rand() % 40 * 0.1f};
         // Copy the mesh component (use same VAO)
         EM.emplace<component::mesh>(entity, EM.get<component::mesh>(sphereEnt));
         EM.emplace<component::metadata>(entity, std::string{"plane "}.append(std::to_string(i)));
-        EM.emplace<component::phys>(entity, 10000.f, dir * 0.f);
+        EM.emplace<component::phys>(entity, getMassFromSize(trans), dir * 0.f);
     }
 
 
@@ -510,7 +517,7 @@ void App::framebuffer_size_callback(GLFWwindow *wp, int width, int height)
          * meaning that x is right, y is up and negative z is forward.
          * (z is flipped from world space to window space)
          */
-    camera.proj = glm::perspective(glm::radians(camera.FOV), static_cast<float>(width) / height, 0.1f, 100.f);
+    camera.proj = glm::perspective(glm::radians(camera.FOV), static_cast<float>(width) / height, 1.f, 1000.f);
 }
 
 void App::errorCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
