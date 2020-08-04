@@ -228,6 +228,7 @@ void App::gameloop()
             glm::vec3 lightPos{0.f, 0.f, 0.f};
             glUniform3fv(glGetUniformLocation(material.shader, "lightPos"), 1, glm::value_ptr(lightPos));
             glUniform3fv(glGetUniformLocation(material.shader, "cameraPos"), 1, glm::value_ptr(cameraPos));
+            glUniform2iv(glGetUniformLocation(material.shader, "screenSize"), 1, glm::value_ptr(screenSize));
         }
 
         // Assign a model matrix if it exist
@@ -349,6 +350,7 @@ void App::setupScene()
     Shader sunShader{"src/shaders/phong.vert", "src/shaders/sun.frag"};
     Shader uvColorShader{"src/shaders/default.vert", "src/shaders/uvcolor.frag"};
     Shader phongShader{"src/shaders/phong.vert", "src/shaders/phong.frag"};
+    Shader axisShader{"src/shaders/axis.vert", "src/shaders/uvcolor.frag"};
 
     glEnable(GL_CULL_FACE);
     // glFrontFace()
@@ -362,7 +364,7 @@ void App::setupScene()
 
     // Setup player
     auto entity = EM.create();
-    EM.emplace<component::trans>(entity, component::trans{.pos{0.f, 0.f, 40.f}, .rot{
+    EM.emplace<component::trans>(entity, component::trans{.pos{0.f, 0.f, 100.f}, .rot{
         glm::quat{std::cosf(0.f), std::sinf(0.f), 0.f, 0.f} *
         glm::quat{std::cosf(0.f), 0.f, std::sinf(0.f), 0.f}
     }});
@@ -375,7 +377,7 @@ void App::setupScene()
      * meaning that x is right, y is up and negative z is forward.
      * (z is flipped from world space to window space)
      */
-    camera.proj = glm::perspective(glm::radians(camera.FOV), static_cast<float>(width) / height, 0.1f, 100.f);
+    camera.proj = glm::perspective(glm::radians(camera.FOV), static_cast<float>(width) / height, SCR_NEAR, SCR_FAR);
     camera.view = component::trans::createViewMat(EM.get<component::trans>(entity));
     playerEntity = entity;
 
@@ -383,7 +385,7 @@ void App::setupScene()
 
     // ------------- Axis: ------------------------------
     entity = EM.create();
-    EM.emplace<component::mat>(entity, uvColorShader.get());
+    EM.emplace<component::mat>(entity, axisShader.get());
     EM.emplace<component::metadata>(entity, "axis");
     auto mesh = &EM.emplace<component::mesh>(entity);
     // EM.emplace<component::trans>(entity);
@@ -592,12 +594,15 @@ void App::framebuffer_size_callback(GLFWwindow *wp, int width, int height)
     auto app = static_cast<App *>(glfwGetWindowUserPointer(wp));
     assert(app != nullptr);
     auto &camera = app->EM.get<component::camera>(app->playerEntity);
+    app->screenSize.x = width;
+    app->screenSize.y = height;
+
     /**
          * glm::perspective makes a right hand coordinate system,
          * meaning that x is right, y is up and negative z is forward.
          * (z is flipped from world space to window space)
          */
-    camera.proj = glm::perspective(glm::radians(camera.FOV), static_cast<float>(width) / height, 1.f, 1000.f);
+    camera.proj = glm::perspective(glm::radians(camera.FOV), static_cast<float>(width) / height, SCR_NEAR, SCR_FAR);
 }
 
 void App::errorCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)

@@ -15,6 +15,8 @@
 // settings
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
+const float SCR_NEAR = 1.f;
+const float SCR_FAR = 1000.f;
 const float CAMERA_ROTATION_SPEED = 0.1f;
 constexpr float MIN_TICK_TIME = std::numeric_limits<float>::epsilon();
 
@@ -36,6 +38,7 @@ private:
     float timeDilation{1.f};
     bool bPause{false};
     bool bSpacePressed{false};
+    glm::ivec2 screenSize{SCR_WIDTH, SCR_HEIGHT};
 
 
 
