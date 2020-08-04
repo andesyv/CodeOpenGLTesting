@@ -34,6 +34,8 @@ private:
     float mouseWheelDist{0.f};
     // Timestep multiplum. A multiplier added to the deltaTime each frame.
     float timeDilation{1.f};
+    bool bPause{false};
+    bool bSpacePressed{false};
 
 
 

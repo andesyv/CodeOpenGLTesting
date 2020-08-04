@@ -71,7 +71,7 @@ void App::showFPS()
     if (elapsed >= 1000)
     {
         const auto fps = frameCount * 1000.f / elapsed;
-        std::string title{"CodeOpenGLTesting, fps: " + std::to_string(fps) + ", time dilation: " + std::to_string(timeDilation) + ", camera speed: " + std::to_string(cameraSpeed)};
+        std::string title{"Space Sim, fps: " + std::to_string(fps) + ", time dilation: " + std::to_string(!bPause * timeDilation) + ", camera speed: " + std::to_string(cameraSpeed)};
         glfwSetWindowTitle(wp, title.c_str());
         frameCount = 0;
         timer.reset();
@@ -98,14 +98,19 @@ void App::processInput(float deltaTime)
     bool bAlt{glfwGetKey(wp, GLFW_KEY_LEFT_ALT) == GLFW_PRESS}, bRMB{glfwGetMouseButton(wp, 1) == GLFW_PRESS};
     if (bAlt || bRMB)
     {
-        if (mouseWheelDist < -0.1f || 0.1f < mouseWheelDist)
-            cameraSpeed += mouseWheelDist * 0.1f;
-        if (glfwGetKey(wp, GLFW_KEY_UP) == GLFW_PRESS)
-            cameraSpeed += 0.1f;        
-        if (glfwGetKey(wp, GLFW_KEY_DOWN) == GLFW_PRESS)
-            cameraSpeed -= 0.1f;
+        if (bRMB) {
+            if (mouseWheelDist < -0.1f || 0.1f < mouseWheelDist)
+                cameraSpeed += mouseWheelDist * 0.1f;
+            if (glfwGetKey(wp, GLFW_KEY_UP) == GLFW_PRESS)
+                cameraSpeed += 0.1f;        
+            if (glfwGetKey(wp, GLFW_KEY_DOWN) == GLFW_PRESS)
+                cameraSpeed -= 0.1f;
 
-        cameraSpeed = std::max(cameraSpeed, 0.1f);
+            cameraSpeed = std::max(cameraSpeed, 0.1f);
+        } else {
+            if (mouseWheelDist < -0.1f || 0.1f < mouseWheelDist)
+                pTrans.pos.z -= mouseWheelDist * deltaTime * 100.f;
+        }
 
 
 
@@ -169,6 +174,11 @@ void App::processInput(float deltaTime)
             timeDilation -= 0.1f;
     }
 
+    bool bNewSpace = glfwGetKey(wp, GLFW_KEY_SPACE) == GLFW_PRESS;
+    if (bNewSpace != bSpacePressed && bNewSpace)
+        bPause = !bPause;
+    bSpacePressed = bNewSpace;
+
     mouseWheelDist = 0.f;
 }
 
@@ -186,7 +196,7 @@ void App::gameloop()
 
     // Physics
     // Timer t{};
-    calcPhysics(deltaTime * timeDilation);
+    calcPhysics(!bPause * deltaTime * timeDilation);
     // std::cout << "Physics took " << t.elapsed<std::chrono::microseconds>() * 0.001f << "ms." << std::endl;
 
     // render
@@ -197,6 +207,9 @@ void App::gameloop()
     unsigned int currentShader{0};
 
     const auto& [camera, playerTrans] = EM.get<component::camera, component::trans>(playerEntity);
+    const auto cameraPos = (playerTrans.flags & playerTrans.OBJECTCENTRIC)
+        ? component::trans::objectCentricPos(playerTrans)
+        : playerTrans.pos;
 
     auto view = EM.view<component::mesh, component::mat, component::metadata>();
     for (const auto &entity : view)
@@ -214,7 +227,7 @@ void App::gameloop()
 
             glm::vec3 lightPos{0.f, 0.f, 0.f};
             glUniform3fv(glGetUniformLocation(material.shader, "lightPos"), 1, glm::value_ptr(lightPos));
-            glUniform3fv(glGetUniformLocation(material.shader, "cameraPos"), 1, glm::value_ptr(playerTrans.pos));
+            glUniform3fv(glGetUniformLocation(material.shader, "cameraPos"), 1, glm::value_ptr(cameraPos));
         }
 
         // Assign a model matrix if it exist
