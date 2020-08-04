@@ -191,7 +191,6 @@ void App::gameloop()
 
     // render
     // ------
-    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glUseProgram(0);
@@ -260,6 +259,9 @@ void App::calcPhysics(float deltaTime)
     unsigned int i{0};
     for (auto it{view.begin()}; it != view.end(); ++it, ++i) {
         auto &[t, p] = view.get<component::trans, component::phys>(*it);
+        
+        if (p.bStatic)
+            continue;
 
         glm::dvec3 f{0.f, 0.f, 0.f};
 
@@ -331,13 +333,16 @@ int App::exec()
 void App::setupScene()
 {
     Shader defaultShader{"src/shaders/default.vert", "src/shaders/default.frag"};
-    Shader colorShader{"src/shaders/default.vert", "src/shaders/color.frag"};
+    Shader sunShader{"src/shaders/phong.vert", "src/shaders/sun.frag"};
+    Shader uvColorShader{"src/shaders/default.vert", "src/shaders/uvcolor.frag"};
     Shader phongShader{"src/shaders/phong.vert", "src/shaders/phong.frag"};
 
     glEnable(GL_CULL_FACE);
     // glFrontFace()
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
+
+    glClearColor(0.033f, 0.1f, 0.1f, 1.0f);
 
     // uncomment this call to draw in wireframe polygons.
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -365,7 +370,7 @@ void App::setupScene()
 
     // ------------- Axis: ------------------------------
     entity = EM.create();
-    EM.emplace<component::mat>(entity, colorShader.get());
+    EM.emplace<component::mat>(entity, uvColorShader.get());
     EM.emplace<component::metadata>(entity, "axis");
     auto mesh = &EM.emplace<component::mesh>(entity);
     // EM.emplace<component::trans>(entity);
@@ -393,7 +398,7 @@ void App::setupScene()
 
     // ----------- Cube: ------------------------------
     auto cubeEnt = entity = EM.create();
-    EM.emplace<component::mat>(entity, colorShader.get());
+    EM.emplace<component::mat>(entity, uvColorShader.get());
     mesh = &EM.emplace<component::mesh>(entity);
     EM.emplace<component::trans>(entity);
     EM.emplace<component::metadata>(entity, "cube");
@@ -450,9 +455,9 @@ void App::setupScene()
 
 
 
-
+    // ----------- Plane: ------------------------------
     entity = EM.create();
-    EM.emplace<component::mat>(entity, phongShader.get(), glm::vec3{0.7f, 0.2f, 0.2f});
+    // EM.emplace<component::mat>(entity, phongShader.get(), glm::vec3{0.7f, 0.2f, 0.2f});
     EM.emplace<component::trans>(entity) = {.pos{0.f, -1.f, 0.f}, .scale{2.f}};
     EM.emplace<component::metadata>(entity, "plane");
     mesh = &EM.emplace<component::mesh>(entity);
@@ -475,12 +480,14 @@ void App::setupScene()
 
 
 
-    // --------------------------- Sphere ----------------------------
+
+    // --------------------------- Sphere (sun) ----------------------------
     entity = EM.create();
     auto sphereEnt = entity;
-    EM.emplace<component::mat>(entity, colorShader.get(), glm::vec3{1.f, 0.f, 0.f});
-    EM.emplace<component::trans>(entity);
+    EM.emplace<component::mat>(entity, sunShader.get(), glm::vec3{1.f, 0.9f, 0.f});
+    EM.emplace<component::trans>(entity, component::trans{.scale{10.f, 10.f, 10.f}});
     EM.emplace<component::metadata>(entity, "ball");
+    EM.emplace<component::phys>(entity, component::phys{.mass{1000000000.f}, .bStatic{true}});
     mesh = &EM.emplace<component::mesh>(entity);
     glCreateVertexArrays(1, &mesh->VAO);
     glBindVertexArray(mesh->VAO);

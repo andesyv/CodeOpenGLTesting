@@ -11,7 +11,7 @@ out vec3 fragPos;
 
 void main()
 {
-    // Multiply with normal matrix (transpose inverse without scale)
+    // Multiply with normal matrix (transpose inverse without translation)
     normal = mat3(transpose(inverse(uModel))) * aNormal;
 
     fragPos = (uModel * vec4(aPos, 1.0)).xyz;

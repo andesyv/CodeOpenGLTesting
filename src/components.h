@@ -175,6 +175,7 @@ struct phys
     // Mass in kilograms
     float mass{1000.f};
     glm::dvec3 vel{0.f, 0.f, 0.f};
+    bool bStatic{false};
 };
 }
 
