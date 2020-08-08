@@ -1,3 +1,6 @@
+#ifndef MODELLOADER_H
+#define MODELLOADER_H
+
 #include "json.hpp" // https://github.com/nlohmann/json
 #include "components.h"
 #include <fstream>
@@ -430,3 +433,5 @@ public:
         }
     }
 };
+
+#endif

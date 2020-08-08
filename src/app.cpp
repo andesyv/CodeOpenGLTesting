@@ -6,6 +6,7 @@
 #include "shapes.h"
 
 #include "modelloader.h"
+#include "physics.h"
 
 App::App()
 {
@@ -196,7 +197,7 @@ void App::gameloop()
 
     // Physics
     // Timer t{};
-    calcPhysics(!bPause * deltaTime * timeDilation);
+    calcPhysics(EM, EM.view<component::trans, component::phys>(), !bPause * deltaTime * timeDilation);
     // std::cout << "Physics took " << t.elapsed<std::chrono::microseconds>() * 0.001f << "ms." << std::endl;
 
     // render
@@ -228,7 +229,7 @@ void App::gameloop()
             glm::vec3 lightPos{0.f, 0.f, 0.f};
             glUniform3fv(glGetUniformLocation(material.shader, "lightPos"), 1, glm::value_ptr(lightPos));
             glUniform3fv(glGetUniformLocation(material.shader, "cameraPos"), 1, glm::value_ptr(cameraPos));
-            glUniform2iv(glGetUniformLocation(material.shader, "screenSize"), 1, glm::value_ptr(screenSize));
+            // glUniform2iv(glGetUniformLocation(material.shader, "screenSize"), 1, glm::value_ptr(screenSize));
         }
 
         // Assign a model matrix if it exist
@@ -255,48 +256,6 @@ void App::gameloop()
     // -------------------------------------------------------------------------------
     glfwSwapBuffers(wp);
     glfwPollEvents();
-}
-
-/**
- * Note: For ekstra precision during physics calculations
- * we promote variables to doubles.
- */
-void App::calcPhysics(float deltaTime)
-{
-    if (deltaTime <= MIN_TICK_TIME)
-        return;
-
-    const auto time = static_cast<double>(deltaTime);
-
-    auto view = EM.view<component::trans, component::phys>();
-
-    unsigned int i{0};
-    for (auto it{view.begin()}; it != view.end(); ++it, ++i) {
-        auto &[t, p] = view.get<component::trans, component::phys>(*it);
-        
-        if (p.bStatic)
-            continue;
-
-        glm::dvec3 f{0.f, 0.f, 0.f};
-
-        for (auto other{view.begin()}; other != view.end(); ++other) {
-            if (it == other)
-                continue;
-            
-            auto& [t2, p2] = view.get<component::trans, component::phys>(*other);
-            glm::dvec3 dist = t2.pos - t.pos;
-
-            f += glm::normalize(dist) * calcGravity(p.mass, p2.mass, dist.length());
-        }
-
-        // std::cout << "a: " << glm::length(a) << ", deltaTime: " << deltaTime << ", a * deltaTime: " << glm::length(a *deltaTime) << std::endl;
-        const auto a = f / static_cast<double>(p.mass);
-        if (glm::any(glm::isnan(a)))
-            continue;
-        p.vel += a * time;
-        // Demote double to float for final calculation. (No need to keep variable if it cannot be stored)
-        t.pos += static_cast<glm::vec3>(p.vel * time);
-    }
 }
 
 int App::init(int currentReward)
