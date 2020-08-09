@@ -91,7 +91,8 @@
 			"regex": "cpp",
 			"thread": "cpp",
 			"valarray": "cpp",
-			"xtree": "cpp"
+			"xtree": "cpp",
+			"compare": "cpp"
 		}
 	}
 }

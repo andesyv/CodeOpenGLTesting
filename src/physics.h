@@ -51,7 +51,7 @@ std::pair<glm::dvec3, glm::dvec3> getImpactVel(const component::phys& p1, const 
  */
 /// When you don't know the param syntax, just make it a template. :D
 template <typename T>
-void calcPhysics(T entities, float deltaTime = 0.f)
+void calcPhysics(T&& entities, float deltaTime = 0.f)
 {
     if (deltaTime <= MIN_TICK_TIME)
         return;
@@ -63,25 +63,30 @@ void calcPhysics(T entities, float deltaTime = 0.f)
     unsigned int i{0};
     for (auto it{entities.begin()}; it != entities.end(); ++it, ++i)
     {
-        auto &[t, p] = entities.get<component::trans, component::phys>(*it);
+        auto t = entities.get<component::trans>(*it);
+        auto &p = entities.get<component::phys>(*it);
 
         if (p.bStatic)
             continue;
 
         glm::dvec3 f{0.f, 0.f, 0.f};
 
+        // Since t and t2 are copies, we can modify them all we want before testing for collision.
+        // t.pos += static_cast<glm::vec3>(p.vel * time);
+
         for (auto other{entities.begin()}; other != entities.end(); ++other)
         {
             if (it == other)
                 continue;
 
-            auto &[t2, p2] = entities.get<component::trans, component::phys>(*other);
+            auto [t2, p2] = entities.get<component::trans, component::phys>(*other);
             glm::dvec3 dist = t2.pos - t.pos;
 
             const auto distNorm = glm::normalize(dist);
 
             f += distNorm * calcGravity(p.mass, p2.mass, dist.length());
 
+            // t2.pos += static_cast<glm::vec3>(p2.vel * time);
             if (isColliding(t, t2))
                 collidedObjects.push_back({*it, *other});
         }

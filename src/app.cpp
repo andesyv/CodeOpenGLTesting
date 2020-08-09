@@ -197,7 +197,7 @@ void App::gameloop()
 
     // Physics
     // Timer t{};
-    calcPhysics(EM.view<component::trans, component::phys>(), !bPause * deltaTime * timeDilation);
+    calcPhysics(std::move(EM.view<component::trans, component::phys>()), !bPause * deltaTime * timeDilation);
     // std::cout << "Physics took " << t.elapsed<std::chrono::microseconds>() * 0.001f << "ms." << std::endl;
 
     // render
@@ -235,7 +235,7 @@ void App::gameloop()
         // Assign a model matrix if it exist
         if (EM.has<component::trans>(entity))
         {
-            auto& transform = EM.get<component::trans>(entity);
+            const auto& transform = EM.get<component::trans>(entity);
             // if (view.get<component::metadata>(entity).name != "plane")
             //     transform.rot *= glm::quat{std::cosf(deltaTime * 0.5f), transform.right() * std::sinf(deltaTime * 0.5f)};
             // transform.pos.x += deltaTime * 0.1f;
