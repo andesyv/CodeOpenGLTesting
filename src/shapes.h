@@ -1,3 +1,6 @@
+#ifndef SHAPES_H
+#define SHAPES_H
+
 #include "components.h"
 #include <array>
 #include <vector>
@@ -158,3 +161,5 @@ std::vector<vertex> cubeSphere(unsigned int subdivisions = 0) {
     return vertices;
 }
 }
+
+#endif // SHAPES_H

@@ -1,3 +1,6 @@
+#ifndef TIMER_H
+#define TIMER_H
+
 #include <chrono>
 
 template <typename ct = std::chrono::steady_clock>
@@ -33,3 +36,5 @@ public:
 
 class Timer : public basic_timer<std::chrono::steady_clock>
 {};
+
+#endif

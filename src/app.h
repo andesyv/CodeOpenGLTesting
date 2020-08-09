@@ -1,3 +1,6 @@
+#ifndef APP_H
+#define APP_H
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <array>
@@ -6,7 +9,6 @@
 #include <entt/entt.hpp> // https://github.com/skypjack/entt
 #include <glm/glm.hpp>   // https://github.com/g-truc/glm
 #include <tuple>
-#include <limits>
 
 #include "shader.h"
 #include "timer.h"
@@ -18,7 +20,6 @@ const unsigned int SCR_HEIGHT = 600;
 const float SCR_NEAR = 1.f;
 const float SCR_FAR = 1000.f;
 const float CAMERA_ROTATION_SPEED = 0.1f;
-constexpr float MIN_TICK_TIME = std::numeric_limits<float>::epsilon();
 
 class App
 {
@@ -48,7 +49,6 @@ private:
     // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
     void processInput(float deltaTime = 1.f);
     void gameloop();
-    void calcPhysics(float deltaTime);
 
 public:
     App();
@@ -65,10 +65,6 @@ public:
     // glfw: whenever the wp size changed (by OS or user resize) this callback function executes
     static void framebuffer_size_callback(GLFWwindow *wp, int width, int height);
     static void errorCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam);
-    inline static double calcGravity(float m1, float m2, float distance) {
-        static constexpr double G = 6.6743e-11;
-        return G * m1 * m2 / std::pow(distance, 2.0);
-    }
     static void scroll_callback(GLFWwindow *wp, double xoffset, double yoffset) {
         static_cast<App*>(glfwGetWindowUserPointer(wp))->mouseWheelDist += yoffset;
     }
@@ -124,6 +120,10 @@ public:
         return nullptr;
     }
 
+    std::vector<App*> getInstances() { return Instances; }
+
     AppSingleton(const AppSingleton&) = delete;
     AppSingleton(AppSingleton&&) = delete;
 };
+
+#endif // APP_H
