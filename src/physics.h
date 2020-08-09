@@ -45,6 +45,26 @@ std::pair<glm::dvec3, glm::dvec3> getImpactVel(const component::phys& p1, const 
     };
 }
 
+void enforcePosition(component::trans& t1, component::trans& t2, bool p1Static, bool p2Static) {
+    if (p1Static && p2Static)
+        return;
+    
+    auto r1{t1.scale.x}, r2{t2.scale.x};
+    auto dist = t2.pos - t1.pos;
+    auto dir = glm::normalize(dist);
+    auto disp = dir * (r1 + r2);
+    auto centre = t1.pos + (r1 / r2) * dist;
+    
+    if (p2Static) {
+        t1.pos = centre - dir * r1;
+    } else if (p1Static) {
+        t2.pos = centre + dir * r2;
+    } else {
+        t1.pos = centre - dir * r1 * 0.5f;
+        t2.pos = centre + dir * r2 * 0.5f;
+    }
+}
+
 /**
  * Note: For ekstra precision during physics calculations
  * we promote variables to doubles.
@@ -122,6 +142,8 @@ void calcPhysics(T&& entities, float deltaTime = 0.f)
 
         auto& [t1, p1] = entities.get<component::trans, component::phys>(e1);
         auto& [t2, p2] = entities.get<component::trans, component::phys>(e2);
+
+        enforcePosition(t1, t2, p1.bStatic, p2.bStatic);
 
         auto& [v1, v2] = getImpactVel(p1, p2);
         p1.vel += v1;
