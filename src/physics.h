@@ -26,7 +26,7 @@ bool isColliding(const component::trans& s1, const component::trans& s2) {
  * 
  * V_1 = (m_1 - m_2) * v_1 / (m_1 + m_2) + 2 * m_2 * v_2 / (m_1 + m_2)
  */
-std::pair<glm::dvec3, glm::dvec3> getImpactVel(const component::phys& p1, const component::phys& p2) {
+std::pair<glm::dvec3, glm::dvec3> getImpactVel(const component::phys& p1, const component::phys& p2, glm::dvec3 normal) {
     // return static_cast<double>((affected.mass - other.mass) * glm::length(affected.vel) / (affected.mass + other.mass))
     //     + static_cast<double>(2.f * other.mass * glm::length(other.vel) / (affected.mass + other.mass));
     auto v_1{glm::length(p1.vel)}, v_2{glm::length(p2.vel)};
@@ -35,13 +35,13 @@ std::pair<glm::dvec3, glm::dvec3> getImpactVel(const component::phys& p1, const 
 
     // If colliding with an immovable object, just bounce right back.
     if (p1.bStatic)
-        return {{}, -2.0 * p2.vel};
+        return {{}, glm::reflect(p2.vel, normal) - p2.vel};
     else if (p2.bStatic)
-        return {-2.0 * p1.vel, {}};
+        return {glm::reflect(p1.vel, -normal) - p1.vel, {}};
 
     return {
-        (fTotal * 0.5 / p1.mass) * -glm::normalize(p1.vel),
-        (fTotal * 0.5 / p2.mass) * -glm::normalize(p2.vel),
+        (fTotal * 0.5 / p1.mass) * glm::reflect(glm::normalize(p1.vel), -normal),
+        (fTotal * 0.5 / p2.mass) * glm::reflect(glm::normalize(p2.vel), normal)
     };
 }
 
@@ -143,9 +143,9 @@ void calcPhysics(T&& entities, float deltaTime = 0.f)
         auto& [t1, p1] = entities.get<component::trans, component::phys>(e1);
         auto& [t2, p2] = entities.get<component::trans, component::phys>(e2);
 
-        enforcePosition(t1, t2, p1.bStatic, p2.bStatic);
+        // enforcePosition(t1, t2, p1.bStatic, p2.bStatic);
 
-        auto& [v1, v2] = getImpactVel(p1, p2);
+        auto& [v1, v2] = getImpactVel(p1, p2, static_cast<glm::dvec3>(glm::normalize(t2.pos - t1.pos)));
         p1.vel += v1;
         p2.vel += v2;
     }
