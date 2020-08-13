@@ -163,6 +163,7 @@ struct mat
 {
     int shader;
     glm::vec3 color{1.f, 1.f, 1.f};
+    bool bDrawn = true;
 };
 
 struct metadata

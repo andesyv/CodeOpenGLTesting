@@ -28,6 +28,10 @@ private:
     Timer appTimer{};
     Timer frameTimer{};
     GLFWwindow *wp{nullptr};
+    entt::entity screenSpacedQuad;
+    unsigned int fbo, rbTex, fbDepth;
+    unsigned int screenSpaceVAO, screenSpaceVBO;
+    Shader *UIShader = nullptr;
     float cameraSpeed{1.f};
 
     // Entity Manager

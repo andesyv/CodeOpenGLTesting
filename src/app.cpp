@@ -61,6 +61,33 @@ int App::initOpenGL()
     glEnable(GL_DEBUG_OUTPUT);
     // glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS); // If you want to ensure the error happens exactly after the error on the same thread.
     glDebugMessageCallback(&errorCallback, this);
+
+    // Setup framebuffer
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glGenTextures(1, &rbTex);
+    glBindTexture(GL_TEXTURE_2D, rbTex);
+    
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+    // glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, 800, 600);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glGenRenderbuffers(1, &fbDepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, fbDepth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, SCR_WIDTH, SCR_HEIGHT); // use a single renderbuffer object for both a depth AND stencil buffer.
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fbDepth); // now actually attach it
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rbTex, 0);
+
+
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cout << "Framebuffer failed with status: " << glCheckFramebufferStatus(GL_FRAMEBUFFER) << std::endl;
+        return -1;
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
     return 1;
 }
 
@@ -202,6 +229,9 @@ void App::gameloop()
 
     // render
     // ------
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glEnable(GL_DEPTH_TEST);
+    glClearColor(0.f, 0.f, 0.f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glUseProgram(0);
@@ -218,6 +248,9 @@ void App::gameloop()
         glm::mat4 modelMat{1.f};
         // (Structured bindings ftw!! ENTT is so cool)
         auto &[mesh, material] = view.get<component::mesh, component::mat>(entity);
+
+        if (!material.bDrawn)
+            continue;
 
         // Set shader and shader-params (only if not already set)
         if (material.shader != currentShader) {
@@ -250,6 +283,21 @@ void App::gameloop()
         else
             glDrawArrays(mesh.drawMode, 0, mesh.vertexCount);
     }
+
+    // Draw screenspaced quad to blip framebuffers
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDisable(GL_DEPTH_TEST);
+    glClearColor(1.f, 0.f, 0.f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    auto& [ssMesh, ssMat] = EM.get<component::mesh, component::mat>(screenSpacedQuad);
+    glUseProgram(ssMat.shader);
+    glBindVertexArray(ssMesh.VAO);
+    glBindTexture(GL_TEXTURE_2D, rbTex);
+    // glUniform1i(glGetUniformLocation(ssMat.shader, "tex"), 0);
+    glDrawArrays(GL_TRIANGLES, 0, ssMesh.vertexCount);
+
+
     glBindVertexArray(0); // no need to unbind it every time
 
     // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
@@ -296,6 +344,9 @@ int App::exec()
     // // optional: de-allocate all resources once they've outlived their purpose:
     // // ------------------------------------------------------------------------
     cleanupScene();
+    glDeleteTextures(1, &rbTex);
+    glDeleteFramebuffers(1, &fbo);
+
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------
@@ -310,6 +361,38 @@ void App::setupScene()
     Shader uvColorShader{"src/shaders/default.vert", "src/shaders/uvcolor.frag"};
     Shader phongShader{"src/shaders/phong.vert", "src/shaders/phong.frag"};
     Shader axisShader{"src/shaders/axis.vert", "src/shaders/uvcolor.frag"};
+    Shader UIShader{"src/shaders/pass.vert", "src/shaders/ui.frag"};
+
+
+    // Setup screenspaced plane
+    auto entity = EM.create();
+    screenSpacedQuad = entity;
+    EM.emplace<component::mat>(entity, *UIShader).bDrawn = false;
+    auto mesh = &EM.emplace<component::mesh>(entity);
+    glGenVertexArrays(1, &mesh->VAO);
+    glBindVertexArray(mesh->VAO);
+    glGenBuffers(1, &mesh->VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->VBO);
+
+    std::vector<vertex> vertices{
+        {.pos{-1.f, -1.f, 0.f}, .uv{0.f, 0.f}},
+        {.pos{1.f, -1.f, 0.f}, .uv{1.f, 0.f}},
+        {.pos{1.f, 1.f, 0.f}, .uv{1.f, 1.f}},
+
+        {.pos{1.f, 1.f, 0.f}, .uv{1.f, 1.f}},
+        {.pos{-1.f, 1.f, 0.f}, .uv{0.f, 1.f}},
+        {.pos{-1.f, -1.f, 0.f}, .uv{0.f, 0.f}}
+    };
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertex) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), nullptr);
+    // glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(3 * sizeof(float)));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)(6 * sizeof(float)));
+    glEnableVertexAttribArray(0);
+    // glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+    mesh->vertexCount = static_cast<unsigned>(vertices.size());
+
+
 
     glEnable(GL_CULL_FACE);
     // glFrontFace()
@@ -322,7 +405,7 @@ void App::setupScene()
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
     // Setup player
-    auto entity = EM.create();
+    entity = EM.create();
     EM.emplace<component::trans>(entity, component::trans{.pos{0.f, 0.f, 100.f}, .rot{
         glm::quat{std::cosf(0.f), std::sinf(0.f), 0.f, 0.f} *
         glm::quat{std::cosf(0.f), 0.f, std::sinf(0.f), 0.f}
@@ -346,7 +429,7 @@ void App::setupScene()
     entity = EM.create();
     EM.emplace<component::mat>(entity, axisShader.get());
     EM.emplace<component::metadata>(entity, "axis");
-    auto mesh = &EM.emplace<component::mesh>(entity);
+    mesh = &EM.emplace<component::mesh>(entity);
     // EM.emplace<component::trans>(entity);
 
     unsigned int VAO, VBO, EBO;
@@ -548,6 +631,7 @@ void App::framebuffer_size_callback(GLFWwindow *wp, int width, int height)
 {
     // make sure the viewport matches the new wp dimensions; note that width and
     // height will be significantly larger than specified on retina displays.
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, width, height);
 
     auto app = static_cast<App *>(glfwGetWindowUserPointer(wp));
@@ -562,6 +646,15 @@ void App::framebuffer_size_callback(GLFWwindow *wp, int width, int height)
          * (z is flipped from world space to window space)
          */
     camera.proj = glm::perspective(glm::radians(camera.FOV), static_cast<float>(width) / height, SCR_NEAR, SCR_FAR);
+
+
+    // Resize framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, app->fbo);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+    // Note to self: Resizing one of the buffers will make OpenGL limit drawing to the smallest buffer even if it's never used.
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void App::errorCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
@@ -590,7 +683,7 @@ void App::errorCallback(GLenum source, GLenum type, GLuint id, GLenum severity, 
                                             ESPair{GL_DEBUG_SEVERITY_NOTIFICATION, "GL_DEBUG_SEVERITY_NOTIFICATION"})};
 
     // Close if severe error.
-    if (severity == GL_DEBUG_SEVERITY_HIGH || severity == GL_DEBUG_SEVERITY_MEDIUM) {
+    if (severity == GL_DEBUG_SEVERITY_HIGH) {
         auto app = (App*)userParam;
         glfwSetWindowShouldClose(app->wp, true);
     }
