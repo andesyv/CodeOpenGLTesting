@@ -10,6 +10,7 @@
 class Bloom {
 private:
     GLsizei width, height;
+    static constexpr unsigned int blurBufferDivisor = 2;
 
     // 0 is base, 1 and 2 is ping pong
     unsigned int base;
@@ -85,7 +86,7 @@ public:
         for (unsigned int i{0}; i < 2; ++i) {
             glBindFramebuffer(GL_FRAMEBUFFER, pingpong[i]);
             glBindTexture(GL_TEXTURE_2D, ppTex[i]);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width / blurBufferDivisor, height / blurBufferDivisor, 0, GL_RGBA, GL_FLOAT, nullptr);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -104,6 +105,8 @@ public:
 
     void split() {
         glBindFramebuffer(GL_FRAMEBUFFER, base);
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+
         glDisable(GL_DEPTH_TEST);
         glClear(GL_COLOR_BUFFER_BIT);
         glUseProgram(splitShader.get());
@@ -111,6 +114,12 @@ public:
         glBindTexture(GL_TEXTURE_2D, inputTex);
 
         render();
+
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, base);
+        glReadBuffer(GL_COLOR_ATTACHMENT1);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, pingpong[0]);
+        glBlitFramebuffer(0, 0, width, height, 0, 0, width / blurBufferDivisor, height / blurBufferDivisor, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+        glViewport(0, 0, width / blurBufferDivisor, height / blurBufferDivisor);
     }
 
     void blur(unsigned int amount = 10) {
@@ -122,11 +131,14 @@ public:
             glDisable(GL_DEPTH_TEST);
             glClear(GL_COLOR_BUFFER_BIT);
             glUniform1i(glGetUniformLocation(blurShader.get(), "horizontal"), horizontal);
-            glBindTexture(GL_TEXTURE_2D, i == 0 ? bTex[1] : ppTex[horizontal]);
+            glBindTexture(GL_TEXTURE_2D, ppTex[horizontal]);
             lastPing = horizontal = !horizontal;
 
             render();
         }
+
+        glViewport(0, 0, width, height);
+        glBlitFramebuffer(0, 0, width / blurBufferDivisor, height / blurBufferDivisor, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
     }
 
     void combine() {

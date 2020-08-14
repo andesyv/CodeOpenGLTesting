@@ -23,7 +23,8 @@ void main()
     // Specular light
     vec3 viewDir = normalize(cameraPos - fragPos);
     vec3 reflectDir = reflect(-lightDir, norm);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32) * 0.5;
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32) * 2.0;
 
-    FragColor = vec4((ambient + diff + spec) * color, 1.0);
+    float finalFactor = ambient + diff + spec;
+    FragColor = vec4(finalFactor * color, 1.0);
 }

@@ -103,6 +103,10 @@ public:
         glDeleteShader(fragmentShader);
         
         bValid = true;
+
+        std::cout << "SHADERINFO: Shader with " << vPath.substr(vPath.find_last_of('/') + 1)
+            << " and " << fPath.substr(fPath.find_last_of('/') + 1) << " created with program id: "
+            << program << std::endl;
     }
 
     int get() const { return program; }
