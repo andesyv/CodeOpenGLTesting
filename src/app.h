@@ -9,10 +9,12 @@
 #include <entt/entt.hpp> // https://github.com/skypjack/entt
 #include <glm/glm.hpp>   // https://github.com/g-truc/glm
 #include <tuple>
+#include <memory>
 
 #include "shader.h"
 #include "timer.h"
 #include "components.h"
+#include "bloom.h"
 
 // settings
 const unsigned int SCR_WIDTH = 800;
@@ -31,7 +33,7 @@ private:
     entt::entity screenSpacedQuad;
     unsigned int fbo, rbTex, fbDepth;
     unsigned int screenSpaceVAO, screenSpaceVBO;
-    Shader *UIShader = nullptr;
+    std::unique_ptr<Bloom> bloomEffect;
     float cameraSpeed{1.f};
 
     // Entity Manager

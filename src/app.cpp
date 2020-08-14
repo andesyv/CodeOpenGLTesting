@@ -86,6 +86,8 @@ int App::initOpenGL()
         return -1;
     }
 
+    bloomEffect = std::make_unique<Bloom>(rbTex);
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     return 1;
@@ -284,21 +286,21 @@ void App::gameloop()
             glDrawArrays(mesh.drawMode, 0, mesh.vertexCount);
     }
 
-    // Draw screenspaced quad to blip framebuffers
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glDisable(GL_DEPTH_TEST);
-    glClearColor(1.f, 0.f, 0.f, 1.f);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    auto& [ssMesh, ssMat] = EM.get<component::mesh, component::mat>(screenSpacedQuad);
-    glUseProgram(ssMat.shader);
-    glBindVertexArray(ssMesh.VAO);
-    glBindTexture(GL_TEXTURE_2D, rbTex);
-    // glUniform1i(glGetUniformLocation(ssMat.shader, "tex"), 0);
-    glDrawArrays(GL_TRIANGLES, 0, ssMesh.vertexCount);
-
-
     glBindVertexArray(0); // no need to unbind it every time
+
+    // // Draw screenspaced quad to blip framebuffers
+    // glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    // glDisable(GL_DEPTH_TEST);
+    // glClearColor(1.f, 0.f, 0.f, 1.f);
+    // glClear(GL_COLOR_BUFFER_BIT);
+
+    // auto& [ssMesh, ssMat] = EM.get<component::mesh, component::mat>(screenSpacedQuad);
+    // glUseProgram(ssMat.shader);
+    // glBindVertexArray(ssMesh.VAO);
+    // glBindTexture(GL_TEXTURE_2D, rbTex);
+    // // glUniform1i(glGetUniformLocation(ssMat.shader, "tex"), 0);
+    // glDrawArrays(GL_TRIANGLES, 0, ssMesh.vertexCount);
+    bloomEffect->doTheThing();
 
     // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
     // -------------------------------------------------------------------------------
@@ -653,6 +655,8 @@ void App::framebuffer_size_callback(GLFWwindow *wp, int width, int height)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
     // Note to self: Resizing one of the buffers will make OpenGL limit drawing to the smallest buffer even if it's never used.
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+
+    app->bloomEffect = std::make_unique<Bloom>(app->rbTex, width, height);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
