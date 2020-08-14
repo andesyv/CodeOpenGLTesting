@@ -611,7 +611,7 @@ void App::framebuffer_size_callback(GLFWwindow *wp, int width, int height)
          */
     camera.proj = glm::perspective(glm::radians(camera.FOV), static_cast<float>(width) / height, SCR_NEAR, SCR_FAR);
 
-    app->bloomEffect = std::make_unique<Bloom>(width, height);
+    app->bloomEffect.reset(new Bloom{std::move(*app->bloomEffect), width, height});
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }

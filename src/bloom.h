@@ -6,6 +6,7 @@
 #include "components.h"
 #include <vector>
 #include <memory>
+#include <optional>
 
 
 class Bloom {
@@ -20,13 +21,17 @@ private:
     unsigned int ppTex[2];
     unsigned lastPing = 0;
 
-    unsigned q, qVBO;
+    std::optional<unsigned> q, qVBO;
 
     void createQuad() {
-        glGenVertexArrays(1, &q);
-        glBindVertexArray(q);
-        glGenBuffers(1, &qVBO);
-        glBindBuffer(GL_ARRAY_BUFFER, qVBO);
+        if (q) return;
+
+        q.emplace();
+        qVBO.emplace();
+        glGenVertexArrays(1, &*q);
+        glBindVertexArray(*q);
+        glGenBuffers(1, &*qVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, *qVBO);
 
         std::vector<vertex> vertices{
             {.pos{-1.f, -1.f, 0.f}, .uv{0.f, 0.f}},
@@ -49,17 +54,8 @@ private:
     void render() {
         glDrawArrays(GL_TRIANGLES, 0, 6);
     }
-    
-public:
-    Shader splitShader{"src/shaders/postprocessing/pass.vert", "src/shaders/postprocessing/split.frag"};
-    Shader blurShader{"src/shaders/postprocessing/pass.vert", "src/shaders/postprocessing/blur.frag"};
-    Shader combineShader{"src/shaders/postprocessing/pass.vert", "src/shaders/postprocessing/combine.frag"};
 
-    Bloom(GLsizei screenWidth = 800, GLsizei screenHeight = 600)
-        : width{screenWidth}, height{screenHeight}
-    {
-        std::cout << "Framebuffer width: " << width << ", height: " << height << std::endl;
-
+    void initBuffers() {
         glGenFramebuffers(1, &inputBuf);
         glBindFramebuffer(GL_FRAMEBUFFER, inputBuf);
         glGenTextures(1, &iTex);
@@ -128,6 +124,46 @@ public:
 
         createQuad();
     }
+    
+public:
+    std::shared_ptr<Shader> splitShader{std::make_shared<Shader>("src/shaders/postprocessing/pass.vert", "src/shaders/postprocessing/split.frag")};
+    std::shared_ptr<Shader> blurShader{std::make_shared<Shader>("src/shaders/postprocessing/pass.vert", "src/shaders/postprocessing/blur.frag")};
+    std::shared_ptr<Shader> combineShader{std::make_shared<Shader>("src/shaders/postprocessing/pass.vert", "src/shaders/postprocessing/combine.frag")};
+
+    // Default constructor
+    Bloom(GLsizei screenWidth = 800, GLsizei screenHeight = 600)
+        : width{screenWidth}, height{screenHeight}
+    {
+        initBuffers();
+    }
+
+    // Default copy constructor
+    Bloom(const Bloom& rhs)
+        : width{rhs.width}, height{rhs.height},
+        splitShader{rhs.splitShader}, blurShader{rhs.blurShader}, combineShader{rhs.combineShader} 
+    {
+        initBuffers();
+    }
+
+    // Copy constructor with new width and height
+    Bloom(const Bloom& rhs, GLsizei newWidth, GLsizei newHeight)
+        : width{newWidth}, height{newHeight},
+        splitShader{rhs.splitShader}, blurShader{rhs.blurShader}, combineShader{rhs.combineShader} 
+    {
+        initBuffers();
+    }
+
+    Bloom(Bloom&&) = delete;
+
+    // Custom move constructor that invalidates rhs's shader pointers and screenspaced quad.
+    Bloom(Bloom&& rhs, GLsizei newWidth, GLsizei newHeight)
+        : width{newWidth}, height{newHeight},
+        splitShader{std::move(rhs.splitShader)}, blurShader{std::move(rhs.blurShader)}, combineShader{std::move(rhs.combineShader)} 
+    {
+        q.swap(rhs.q);
+        qVBO.swap(rhs.qVBO);
+        initBuffers();
+    }
 
     // Initial write to buffer
     unsigned int input() const {
@@ -140,8 +176,8 @@ public:
 
         glDisable(GL_DEPTH_TEST);
         glClear(GL_COLOR_BUFFER_BIT);
-        glUseProgram(splitShader.get());
-        glBindVertexArray(q);
+        glUseProgram(splitShader->get());
+        glBindVertexArray(*q);
         glBindTexture(GL_TEXTURE_2D, iTex);
 
         render();
@@ -154,14 +190,14 @@ public:
     }
 
     void blur(unsigned int amount = 10) {
-        glBindVertexArray(q);
-        glUseProgram(blurShader.get());
+        glBindVertexArray(*q);
+        glUseProgram(blurShader->get());
         bool horizontal{false};
         for (unsigned int i{0}; i < amount; ++i) {
             glBindFramebuffer(GL_FRAMEBUFFER, pingpong[!horizontal]);
             glDisable(GL_DEPTH_TEST);
             glClear(GL_COLOR_BUFFER_BIT);
-            glUniform1i(glGetUniformLocation(blurShader.get(), "horizontal"), horizontal);
+            glUniform1i(glGetUniformLocation(blurShader->get(), "horizontal"), horizontal);
             glBindTexture(GL_TEXTURE_2D, ppTex[horizontal]);
             lastPing = horizontal = !horizontal;
 
@@ -174,17 +210,17 @@ public:
 
     void combine() {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glBindVertexArray(q);
+        glBindVertexArray(*q);
         glClear(GL_COLOR_BUFFER_BIT);
-        glUseProgram(combineShader.get());
+        glUseProgram(combineShader->get());
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, bTex[0]);
-        glUniform1i(glGetUniformLocation(combineShader.get(), "tex"), 0);
+        glUniform1i(glGetUniformLocation(combineShader->get(), "tex"), 0);
 
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, ppTex[lastPing]);
-        glUniform1i(glGetUniformLocation(combineShader.get(), "bloom"), 1);
+        glUniform1i(glGetUniformLocation(combineShader->get(), "bloom"), 1);
 
         render();
 
@@ -200,8 +236,12 @@ public:
     }
 
     ~Bloom (){
-        glDeleteBuffers(1, &qVBO);
-        glDeleteBuffers(1, &q);
+        if (q) {
+            glDeleteBuffers(1, &*qVBO);
+            glDeleteBuffers(1, &*q);
+            q = std::nullopt;
+            qVBO = std::nullopt;
+        }
 
         glDeleteTextures(2, ppTex);
         glDeleteFramebuffers(2, pingpong);
