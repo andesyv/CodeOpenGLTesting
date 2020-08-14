@@ -5,6 +5,7 @@
 #include "shader.h"
 #include "components.h"
 #include <vector>
+#include <memory>
 
 
 class Bloom {
@@ -12,16 +13,13 @@ private:
     GLsizei width, height;
     static constexpr unsigned int blurBufferDivisor = 2;
 
-    // 0 is base, 1 and 2 is ping pong
+    unsigned int inputBuf, iTex, iDepth;
     unsigned int base;
-    unsigned int bTex[2];
+    unsigned int bTex[2], bDepth[2];
     unsigned int pingpong[2];
     unsigned int ppTex[2];
     unsigned lastPing = 0;
 
-    Shader splitShader{"src/shaders/postprocessing/pass.vert", "src/shaders/postprocessing/split.frag"};
-    Shader blurShader{"src/shaders/postprocessing/pass.vert", "src/shaders/postprocessing/blur.frag"};
-    Shader combineShader{"src/shaders/postprocessing/pass.vert", "src/shaders/postprocessing/combine.frag"};
     unsigned q, qVBO;
 
     void createQuad() {
@@ -53,13 +51,42 @@ private:
     }
     
 public:
-    unsigned int inputTex;
+    Shader splitShader{"src/shaders/postprocessing/pass.vert", "src/shaders/postprocessing/split.frag"};
+    Shader blurShader{"src/shaders/postprocessing/pass.vert", "src/shaders/postprocessing/blur.frag"};
+    Shader combineShader{"src/shaders/postprocessing/pass.vert", "src/shaders/postprocessing/combine.frag"};
 
-    Bloom(unsigned int input, GLsizei screenWidth = 800, GLsizei screenHeight = 600)
-        : width{screenWidth}, height{screenHeight}, inputTex{input}
+    Bloom(GLsizei screenWidth = 800, GLsizei screenHeight = 600)
+        : width{screenWidth}, height{screenHeight}
     {
+        std::cout << "Framebuffer width: " << width << ", height: " << height << std::endl;
+
+        glGenFramebuffers(1, &inputBuf);
+        glBindFramebuffer(GL_FRAMEBUFFER, inputBuf);
+        glGenTextures(1, &iTex);
+        glBindTexture(GL_TEXTURE_2D, iTex);
+        glViewport(0, 0, width, height);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, iTex, 0);
+
+        glGenRenderbuffers(1, &iDepth);
+        glBindRenderbuffer(GL_RENDERBUFFER, iDepth);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, iDepth);
+
+        if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            std::cout << "Framebuffer failed with status: " << glCheckFramebufferStatus(GL_FRAMEBUFFER) << std::endl;
+            return;
+        }
+
+
+
         glGenFramebuffers(1, &base);
         glBindFramebuffer(GL_FRAMEBUFFER, base);
+        glViewport(0, 0, width, height);
         glGenTextures(2, bTex);
         for (unsigned int i{0}; i < 2; ++i) {
             glBindTexture(GL_TEXTURE_2D, bTex[i]);
@@ -71,10 +98,8 @@ public:
 
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, bTex[i], 0);
         }
-        unsigned attachments[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+        unsigned attachments[]{ GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
         glDrawBuffers(2, attachments);
-
-        glViewport(0, 0, width, height);
 
         if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
             std::cout << "Framebuffer failed with status: " << glCheckFramebufferStatus(GL_FRAMEBUFFER) << std::endl;
@@ -85,6 +110,7 @@ public:
         glGenTextures(2, ppTex);
         for (unsigned int i{0}; i < 2; ++i) {
             glBindFramebuffer(GL_FRAMEBUFFER, pingpong[i]);
+            glViewport(0, 0, width, height);
             glBindTexture(GL_TEXTURE_2D, ppTex[i]);
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width / blurBufferDivisor, height / blurBufferDivisor, 0, GL_RGBA, GL_FLOAT, nullptr);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -103,6 +129,11 @@ public:
         createQuad();
     }
 
+    // Initial write to buffer
+    unsigned int input() const {
+        return inputBuf;
+    }
+
     void split() {
         glBindFramebuffer(GL_FRAMEBUFFER, base);
         glReadBuffer(GL_COLOR_ATTACHMENT0);
@@ -111,7 +142,7 @@ public:
         glClear(GL_COLOR_BUFFER_BIT);
         glUseProgram(splitShader.get());
         glBindVertexArray(q);
-        glBindTexture(GL_TEXTURE_2D, inputTex);
+        glBindTexture(GL_TEXTURE_2D, iTex);
 
         render();
 
@@ -166,7 +197,6 @@ public:
         combine();
 
         glBindVertexArray(0);
-        glEnable(GL_DEPTH_TEST);
     }
 
     ~Bloom (){
@@ -177,6 +207,9 @@ public:
         glDeleteFramebuffers(2, pingpong);
         glDeleteTextures(2, bTex);
         glDeleteFramebuffers(1, &base);
+        glDeleteTextures(1, &iTex);
+        glDeleteRenderbuffers(1, &iDepth);
+        glDeleteFramebuffers(1, &inputBuf);
     }
 };
 

@@ -31,7 +31,6 @@ private:
     Timer frameTimer{};
     GLFWwindow *wp{nullptr};
     entt::entity screenSpacedQuad;
-    unsigned int fbo, rbTex, fbDepth;
     unsigned int screenSpaceVAO, screenSpaceVBO;
     std::unique_ptr<Bloom> bloomEffect;
     float cameraSpeed{1.f};

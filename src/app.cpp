@@ -62,31 +62,7 @@ int App::initOpenGL()
     // glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS); // If you want to ensure the error happens exactly after the error on the same thread.
     glDebugMessageCallback(&errorCallback, this);
 
-    // Setup framebuffer
-    glGenFramebuffers(1, &fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glGenTextures(1, &rbTex);
-    glBindTexture(GL_TEXTURE_2D, rbTex);
-    
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
-    // glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, 800, 600);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    glGenRenderbuffers(1, &fbDepth);
-    glBindRenderbuffer(GL_RENDERBUFFER, fbDepth);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, SCR_WIDTH, SCR_HEIGHT); // use a single renderbuffer object for both a depth AND stencil buffer.
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fbDepth); // now actually attach it
-
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rbTex, 0);
-
-
-    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-        std::cout << "Framebuffer failed with status: " << glCheckFramebufferStatus(GL_FRAMEBUFFER) << std::endl;
-        return -1;
-    }
-
-    bloomEffect = std::make_unique<Bloom>(rbTex);
+    bloomEffect = std::make_unique<Bloom>(SCR_WIDTH, SCR_HEIGHT);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -231,7 +207,7 @@ void App::gameloop()
 
     // render
     // ------
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, bloomEffect->input());
     glEnable(GL_DEPTH_TEST);
     glClearColor(0.f, 0.f, 0.f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -288,18 +264,6 @@ void App::gameloop()
 
     glBindVertexArray(0); // no need to unbind it every time
 
-    // // Draw screenspaced quad to blip framebuffers
-    // glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    // glDisable(GL_DEPTH_TEST);
-    // glClearColor(1.f, 0.f, 0.f, 1.f);
-    // glClear(GL_COLOR_BUFFER_BIT);
-
-    // auto& [ssMesh, ssMat] = EM.get<component::mesh, component::mat>(screenSpacedQuad);
-    // glUseProgram(ssMat.shader);
-    // glBindVertexArray(ssMesh.VAO);
-    // glBindTexture(GL_TEXTURE_2D, rbTex);
-    // // glUniform1i(glGetUniformLocation(ssMat.shader, "tex"), 0);
-    // glDrawArrays(GL_TRIANGLES, 0, ssMesh.vertexCount);
     bloomEffect->doTheThing();
 
     // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
@@ -346,8 +310,6 @@ int App::exec()
     // // optional: de-allocate all resources once they've outlived their purpose:
     // // ------------------------------------------------------------------------
     cleanupScene();
-    glDeleteTextures(1, &rbTex);
-    glDeleteFramebuffers(1, &fbo);
 
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
@@ -649,14 +611,7 @@ void App::framebuffer_size_callback(GLFWwindow *wp, int width, int height)
          */
     camera.proj = glm::perspective(glm::radians(camera.FOV), static_cast<float>(width) / height, SCR_NEAR, SCR_FAR);
 
-
-    // Resize framebuffer
-    glBindFramebuffer(GL_FRAMEBUFFER, app->fbo);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
-    // Note to self: Resizing one of the buffers will make OpenGL limit drawing to the smallest buffer even if it's never used.
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
-
-    app->bloomEffect = std::make_unique<Bloom>(app->rbTex, width, height);
+    app->bloomEffect = std::make_unique<Bloom>(width, height);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
