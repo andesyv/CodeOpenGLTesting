@@ -6,19 +6,36 @@
 #include <sstream>
 #include <iostream>
 #include <glad/glad.h>
+#include <algorithm> // std::find_if
 
 class Shader
 {
+public:
+    typedef typename std::vector<std::pair<std::string, std::string>> envVarsT;
+
+    template <typename T>
+    static bool caseInsensitiveCompare(const T& lhs, const T& rhs) {
+        if (lhs.size() != rhs.size())
+            return false;
+
+        for (auto ilhs{lhs.begin()}, irhs{rhs.begin()}; ilhs != lhs.end(); ++ilhs, ++irhs) {
+            if (std::toupper(*ilhs) != std::toupper(*irhs))
+                return false;
+        }
+
+        return true;
+    }
+
 private:
     bool bValid = false;
     int program;
 
 public:
-    Shader(const std::string& vPath, const std::string& fPath)
+    Shader(const std::string& vPath, const std::string& fPath, envVarsT environmentVariables = {})
     {
         std::string vertexSource{}, fragmentSource{};
         // std::ifstream input{vPath, std::ifstream::in | std::ifstream::ate};
-        if (!appendFile(vertexSource, vPath))
+        if (!appendFile(vertexSource, vPath, environmentVariables))
         {
             std::cout << "SHADER ERROR: Vertex path not found." << std::endl;
             return;
@@ -39,21 +56,13 @@ public:
         // input.close();
 
         // input.open(fPath, std::ifstream::in | std::ifstream::ate);
-        if (!appendFile(fragmentSource, fPath))
+        if (!appendFile(fragmentSource, fPath, environmentVariables))
         {
             std::cout << "SHADER ERROR: Fragment path not found." << std::endl;
             return;
         }
-
-        // fragmentSource.reserve(input.tellg());
-        // input.seekg(0, input.beg);
-        // while (std::getline(input, line, '\n'))
-        // {
-        //     fragmentSource.append(line).append(1, '\n');
-        // }
-        // // fragmentSource.insert(fragmentSource.begin(), std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{});
+        
         auto fSourcePtr = fragmentSource.c_str();
-        // input.close();
         
         // build and compile our shader program
         // ------------------------------------
@@ -112,7 +121,7 @@ public:
     int get() const { return program; }
     int operator* () const { return get(); }
 
-    bool appendFile(std::string& str, std::string_view filename)
+    bool appendFile(std::string& str, std::string_view filename, const envVarsT& envVars)
     {
         std::ifstream ifs{std::string{filename}, std::ifstream::in | std::ifstream::ate};
         if (!ifs)
@@ -132,11 +141,36 @@ public:
                 std::string_view path{line};
                 const auto offset{path.find_first_of('"') + 1};
                 path = path.substr(offset, path.find_last_of('"') - offset);
-                if (0 < path.size() && appendFile(str, path))
+                if (0 < path.size() && appendFile(str, path, envVars))
                     continue;
                 else
                     return false;
             }
+
+            // environment variable substitution
+            if (!envVars.empty()) {
+                // Loop through all substitutions in line
+                for (std::size_t pos{line.find_first_of('$')}; pos != line.npos; pos = line.find_first_of('$', pos + 1)) {
+                    auto substStart{line.begin() + pos};
+                    auto substEnd = std::find_if(substStart + 1, line.end(), [](const char& c){
+                        return c < '0' || ('9' < c && c < 'A') || ('Z' < c && c < 'a') || 'z' < c;
+                    });
+
+                    // if the substitution string couldn't be found, just skip it
+                    if (substEnd == line.end() || substEnd - substStart <= 0) {
+                        continue;
+                    }
+
+                    auto subst{std::string_view{line}.substr(pos + 1, substEnd - substStart - 1)};
+                    for (const auto& var : envVars) {
+                        if (caseInsensitiveCompare(std::string_view{var.first}, subst)) {
+                            line.replace(substStart, substEnd, var.second.begin(), var.second.end());
+                            break;
+                        }
+                    }
+                }
+            }
+
             str.append(line).append(1, '\n');
         }
 
