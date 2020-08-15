@@ -5,7 +5,7 @@ in vec2 uv;
 
 uniform sampler2D tex;
 uniform sampler2D bloom;
-uniform float exposure = 1.0;
+uniform float exposure = 3.0;
 
 void main()
 {             
