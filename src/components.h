@@ -7,6 +7,19 @@
 #include <glad/glad.h>
 #include <type_traits>
 #include <tuple>
+#include <queue>
+
+template <class _Ty, class _Container = std::deque<_Ty>>
+class iqueue : public std::queue<_Ty, _Container> {
+public:
+    typedef typename _Container::iterator iterator;
+    typedef typename _Container::const_iterator const_iterator;
+
+    iterator begin() { return c.begin(); }
+    iterator end() { return c.end(); }
+    const_iterator begin() const { return c.begin(); }
+    const_iterator end() const { return c.end(); }
+};
 
 struct vertex
 {
@@ -177,6 +190,11 @@ struct phys
     float mass{1000.f};
     glm::dvec3 vel{0.f, 0.f, 0.f};
     bool bStatic{false};
+};
+
+struct particle
+{
+    iqueue<glm::vec3> pos;
 };
 }
 

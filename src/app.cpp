@@ -262,6 +262,9 @@ void App::gameloop()
             glDrawArrays(mesh.drawMode, 0, mesh.vertexCount);
     }
 
+    particles->updatePos(EM.view<component::trans, component::particle>());
+    particles->render(EM.view<component::particle>(), sphereMesh, camera);
+
     glBindVertexArray(0); // no need to unbind it every time
 
     bloomEffect->doTheThing();
@@ -530,7 +533,7 @@ void App::setupScene()
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
 
-
+    sphereMesh = *mesh;
 
 
 
@@ -558,6 +561,7 @@ void App::setupScene()
         auto &trans = EM.emplace<component::trans>(entity);
         auto deg = getRandDeg();
         auto dir = getRandPointInUnitSphere();
+        auto velDir = glm::normalize(glm::cross(dir, getRandPointInUnitSphere()));
         // std::cout << "Rand deg : " << deg << ", rand dir: " << dir.x << ", " << dir.y << ", " << dir.z << std::endl;
         trans.flags |= trans.SPHERE;
         trans.pos = dir * (std::rand() % 100 * 0.1f + 100.f);
@@ -567,9 +571,11 @@ void App::setupScene()
         // Copy the mesh component (use same VAO)
         EM.emplace<component::mesh>(entity, EM.get<component::mesh>(sphereEnt));
         EM.emplace<component::metadata>(entity, std::string{"plane "}.append(std::to_string(i)));
-        EM.emplace<component::phys>(entity, getMassFromSize(trans), getRandPointInUnitSphere() * (std::rand() % 100 * 0.01f));
+        EM.emplace<component::phys>(entity, getMassFromSize(trans), velDir * (std::rand() % 100 * 0.01f));
+        EM.emplace<component::particle>(entity);
     }
 
+    particles = std::make_unique<Particles<10>>(30);
 
     // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
     // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.

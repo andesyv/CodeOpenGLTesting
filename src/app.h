@@ -15,6 +15,7 @@
 #include "timer.h"
 #include "components.h"
 #include "bloom.h"
+#include "particles.h"
 
 // settings
 const unsigned int SCR_WIDTH = 800;
@@ -45,6 +46,9 @@ private:
     bool bPause{false};
     bool bSpacePressed{false};
     glm::ivec2 screenSize{SCR_WIDTH, SCR_HEIGHT};
+
+    component::mesh sphereMesh;
+    std::unique_ptr<Particles<>> particles;
 
 
 
