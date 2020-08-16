@@ -12,6 +12,7 @@ private:
     unsigned int b;
     std::size_t pCount{0};
     Shader particleShader;
+    typedef typename glm::vec4 pPosT;
 
 public:
     Particles(std::size_t particleCount = 0)
@@ -21,13 +22,10 @@ public:
         }}
     {
         glGenBuffers(1, &b);
-        glBindBuffer(GL_UNIFORM_BUFFER, b);
-        glBufferData(GL_UNIFORM_BUFFER, pCount * trailSize * sizeof(glm::vec3), nullptr, GL_STATIC_DRAW);
-        glBindBufferBase(GL_UNIFORM_BUFFER, 0, b);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, b);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, pCount * trailSize * sizeof(pPosT), nullptr, GL_STATIC_DRAW);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, b);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-        // Temporary solution. Uniform bufer objects cannot handle more than 16KB. :s
-        assert(pCount * trailSize * sizeof(glm::vec3) < 16 * 1024);
     }
 
     // Prevent move and copy functionality
@@ -54,26 +52,19 @@ public:
 
     template <typename T>
     void render(T&& view, const component::mesh& mesh, const component::camera& camera) {
-        // std::cout << "pCount: " << pCount << ", view.size(): " << view.size() << std::endl;
-        // assert(view.size() == pCount);
-        // std::vector<glm::vec3> positions;
-        // positions.reserve(count);
-        glBindBuffer(GL_UNIFORM_BUFFER, b);
-        std::array<glm::vec3, trailSize> positions{};
-        constexpr auto blockSize = trailSize * sizeof(glm::vec3);
+
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, b);
+        std::array<pPosT, trailSize> positions{};
+        constexpr auto blockSize = sizeof(positions);
         unsigned int i{0};
-        // view.each([&](auto ent, const auto& p){
-        //     // positions.insert(positions.end(), p.pos.begin(), p.pos.end());
-        //     std::copy(p.pos.begin(), p.pos.end(), positions.begin());
-        //     glBufferSubData(GL_UNIFORM_BUFFER, i * blockSize, blockSize, positions.data());
-        //     ++i;    
-        // });
 
         for (auto ent{view.begin()}; ent != view.end() && i < pCount; ++ent, ++i) {
             const auto& p = view.get<component::particle>(*ent);
 
-            std::copy(p.pos.begin(), p.pos.end(), positions.begin());
-            glBufferSubData(GL_UNIFORM_BUFFER, i * blockSize, blockSize, positions.data());
+            std::transform(p.pos.begin(), p.pos.end(), positions.begin(), [](const glm::vec3& p){
+                return glm::vec4{p, 0.0};
+            });
+            glBufferSubData(GL_SHADER_STORAGE_BUFFER, i * blockSize, blockSize, positions.data());
         }
 
         glBindVertexArray(mesh.VAO);
@@ -83,6 +74,7 @@ public:
         glUniformMatrix4fv(glGetUniformLocation(s, "uView"), 1, GL_FALSE, glm::value_ptr(camera.view));
         glDrawArraysInstanced(GL_TRIANGLES, 0, mesh.vertexCount, pCount * trailSize);
 
+        // Cleanup
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
 
