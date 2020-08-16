@@ -264,6 +264,7 @@ void App::gameloop()
 
     if (!bPause)
         particles->updatePos(EM.view<component::trans, component::particle>());
+    particles->updateShaderData(EM.view<component::particle>());
     particles->render(EM.view<component::particle>(), sphereMesh, camera);
 
     glBindVertexArray(0); // no need to unbind it every time
@@ -576,7 +577,7 @@ void App::setupScene()
         EM.emplace<component::particle>(entity);
     }
 
-    particles = std::make_unique<Particles<PARTICLE_TRAIL_SIZE>>(30);
+    particles = std::make_unique<Particles<30, PARTICLE_TRAIL_SIZE>>();
 
     // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
     // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.

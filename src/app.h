@@ -23,7 +23,7 @@ const unsigned int SCR_HEIGHT = 600;
 const float SCR_NEAR = 1.f;
 const float SCR_FAR = 1000.f;
 const float CAMERA_ROTATION_SPEED = 0.1f;
-constexpr unsigned int PARTICLE_TRAIL_SIZE = 10;
+constexpr unsigned int PARTICLE_TRAIL_SIZE = 100;
 
 class App
 {
@@ -49,7 +49,7 @@ private:
     glm::ivec2 screenSize{SCR_WIDTH, SCR_HEIGHT};
 
     component::mesh sphereMesh;
-    std::unique_ptr<Particles<PARTICLE_TRAIL_SIZE>> particles;
+    std::unique_ptr<Particles<30, PARTICLE_TRAIL_SIZE>> particles;
 
 
 

@@ -6,24 +6,23 @@
 #include <vector>
 #include <glad/glad.h>
 
-template <std::size_t trailSize = 10>
+template <std::size_t pCount, std::size_t trailSize = 10>
 class Particles {
 private:
     unsigned int b;
-    std::size_t pCount{0};
     Shader particleShader;
     typedef typename glm::vec4 pPosT;
 
 public:
-    Particles(std::size_t particleCount = 0)
-        : pCount{particleCount}, particleShader{"src/shaders/particle.vert", "src/shaders/particle.frag", {
-            {"pcount", std::to_string(particleCount)},
+    Particles()
+        : particleShader{"src/shaders/particle.vert", "src/shaders/particle.frag", {
+            {"pcount", std::to_string(pCount)},
             {"tlength", std::to_string(trailSize)}
         }}
     {
         glGenBuffers(1, &b);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, b);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, pCount * trailSize * sizeof(pPosT), nullptr, GL_STATIC_DRAW);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, pCount * (trailSize + 1) * sizeof(pPosT), nullptr, GL_STATIC_DRAW);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, b);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
@@ -47,14 +46,16 @@ public:
             else
             // Pop back
                 p.pos.pop();
+            
+            p.scale = t.scale;
         }
     }
 
     template <typename T>
-    void render(T&& view, const component::mesh& mesh, const component::camera& camera) {
-
+    void updateShaderData(T&& view) {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, b);
         std::array<pPosT, trailSize> positions{};
+        std::array<pPosT, pCount> scales{};
         constexpr auto blockSize = sizeof(positions);
         unsigned int i{0};
 
@@ -67,15 +68,23 @@ public:
             glBufferSubData(GL_SHADER_STORAGE_BUFFER, i * blockSize, blockSize, positions.data());
         }
 
+        auto it = scales.begin();
+        view.each([&](auto ent, const component::particle& p){
+            *it = glm::vec4{p.scale, 0.f};
+            ++it;
+        });
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, pCount * blockSize, sizeof(scales), scales.data());
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    }
+
+    template <typename T>
+    void render(T&& view, const component::mesh& mesh, const component::camera& camera) {
         glBindVertexArray(mesh.VAO);
         const auto& s = particleShader.get();
         glUseProgram(s);
         glUniformMatrix4fv(glGetUniformLocation(s, "uProj"), 1, GL_FALSE, glm::value_ptr(camera.proj));
         glUniformMatrix4fv(glGetUniformLocation(s, "uView"), 1, GL_FALSE, glm::value_ptr(camera.view));
         glDrawArraysInstanced(GL_TRIANGLES, 0, mesh.vertexCount, pCount * trailSize);
-
-        // Cleanup
-        glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
 
     ~Particles() {
