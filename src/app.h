@@ -24,6 +24,15 @@ const float SCR_NEAR = 1.f;
 const float SCR_FAR = 1000.f;
 const float CAMERA_ROTATION_SPEED = 0.1f;
 constexpr unsigned int PARTICLE_TRAIL_SIZE = 100;
+/**
+ * For capping framerate and making sure the game doesn't
+ * use resources unnecessarily.
+ */
+constexpr unsigned FRAMERATE = 60;
+// Time, in seconds, per frame.
+constexpr double FRAMETIME = 1.0 / FRAMERATE;
+// Time, in nanoseconds, per frame
+constexpr long long FRAMETIME_N = 1000000000 / FRAMERATE;
 
 class App
 {

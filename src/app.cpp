@@ -4,6 +4,7 @@
 #include <glm/gtc/quaternion.hpp>       // glm::quat
 #include <cstdlib>                      // For std::rand()
 #include "shapes.h"
+#include <thread>
 
 #include "modelloader.h"
 #include "physics.h"
@@ -38,13 +39,14 @@ int App::initGLFW()
     glfwSetWindowUserPointer(wp, this);
     glfwSetFramebufferSizeCallback(wp, framebuffer_size_callback);
     glfwSetScrollCallback(wp, scroll_callback);
+    glfwMakeContextCurrent(wp);
+    glfwSwapInterval(0);
+
     return 1;
 }
 
 int App::initOpenGL()
 {
-    glfwMakeContextCurrent(wp);
-
     // glad: load all OpenGL function pointers
     // ---------------------------------------
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -310,6 +312,9 @@ int App::exec()
     while (!glfwWindowShouldClose(wp))
     {
         gameloop();
+        auto elapsed = frameTimer.elapsed<std::chrono::nanoseconds>();
+        if (elapsed < FRAMETIME_N)
+            std::this_thread::sleep_for(std::chrono::nanoseconds{FRAMETIME_N - elapsed});
     }
 
     // // optional: de-allocate all resources once they've outlived their purpose:
