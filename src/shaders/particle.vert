@@ -8,10 +8,12 @@ layout (std430, binding = 2) buffer ParticleData
 {
     vec4 pos[$PCOUNT * $TLENGTH];
     vec4 scale[$PCOUNT];
+    vec4 color[$PCOUNT];
 };
 
 out vec3 normal;
-out vec3 color;
+out vec3 iColor;
+out vec4 fragPos;
 
 void main()
 {
@@ -19,12 +21,13 @@ void main()
 
     // Multiply with normal matrix (transpose inverse without scale)
     normal = aNormal;
-    color = vec3(floor(gl_InstanceID / float($PCOUNT)) * 0.1);
+    iColor = color[pIndex].xyz;
     
     mat4 model = mat4(mat3(1.0));
     for (int i = 0; i < 3; i++)
-        model[i][i] = scale[pIndex][i] * 0.5;
+        model[i][i] = scale[pIndex][i] * 0.2;
     model[3].xyz = pos[gl_InstanceID].xyz;
 
-    gl_Position = uProj * uView * model * vec4(aPos, 1.0);
+    fragPos = model * vec4(aPos, 1.0);
+    gl_Position = uProj * uView * fragPos;
 }

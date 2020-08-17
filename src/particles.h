@@ -22,7 +22,7 @@ public:
     {
         glGenBuffers(1, &b);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, b);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, pCount * (trailSize + 1) * sizeof(pPosT), nullptr, GL_STATIC_DRAW);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, pCount * (trailSize + 2) * sizeof(pPosT), nullptr, GL_STATIC_DRAW);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, b);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
@@ -56,6 +56,8 @@ public:
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, b);
         std::array<pPosT, trailSize> positions{};
         std::array<pPosT, pCount> scales{};
+        std::array<pPosT, pCount> colors{};
+        GLintptr bufferOffset{0};
         constexpr auto blockSize = sizeof(positions);
         unsigned int i{0};
 
@@ -65,20 +67,26 @@ public:
             std::transform(p.pos.begin(), p.pos.end(), positions.begin(), [](const glm::vec3& p){
                 return glm::vec4{p, 0.0};
             });
-            glBufferSubData(GL_SHADER_STORAGE_BUFFER, i * blockSize, blockSize, positions.data());
+            glBufferSubData(GL_SHADER_STORAGE_BUFFER, bufferOffset, blockSize, positions.data());
+            bufferOffset += blockSize;
         }
 
         auto it = scales.begin();
-        view.each([&](auto ent, const component::particle& p){
+        auto cit = colors.begin();
+        unsigned particleCount{0};
+        view.each([&](auto ent, const component::particle& p, const component::mat& m){
             *it = glm::vec4{p.scale, 0.f};
+            *cit = glm::vec4{m.color, 1.f};
             ++it;
+            ++cit;
         });
-        glBufferSubData(GL_SHADER_STORAGE_BUFFER, pCount * blockSize, sizeof(scales), scales.data());
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, bufferOffset, sizeof(scales), scales.data());
+        bufferOffset += sizeof(scales);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, bufferOffset, sizeof(colors), colors.data());
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
     }
 
-    template <typename T>
-    void render(T&& view, const component::mesh& mesh, const component::camera& camera) {
+    void render(const component::mesh& mesh, const component::camera& camera) {
         glBindVertexArray(mesh.VAO);
         const auto& s = particleShader.get();
         glUseProgram(s);

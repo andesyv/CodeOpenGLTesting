@@ -264,8 +264,11 @@ void App::gameloop()
 
     if (!bPause)
         particles->updatePos(EM.view<component::trans, component::particle>());
-    particles->updateShaderData(EM.view<component::particle>());
-    particles->render(EM.view<component::particle>(), sphereMesh, camera);
+    particles->updateShaderData(EM.view<component::particle, component::mat>());
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    particles->render(sphereMesh, camera);
+    glDisable(GL_BLEND);
 
     glBindVertexArray(0); // no need to unbind it every time
 
